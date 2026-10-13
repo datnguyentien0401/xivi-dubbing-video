@@ -17,6 +17,9 @@ dist/
 !.env.example
 *service-account*.json
 
+# Gemini CLI personal config
+.gemini/settings.local.json
+
 # OS
 .DS_Store
 
@@ -29,3 +32,5 @@ dist/
 
 # Logs
 *.log
+
+scripts/

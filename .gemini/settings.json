@@ -1,0 +1,37 @@
+{
+  "general": {
+    "defaultApprovalMode": "auto_edit"
+  },
+  "hooks": {
+    "BeforeTool": [],
+    "AfterTool": [
+      {
+        "matcher": "replace|write_file",
+        "hooks": [
+          {
+            "command": "bash \"$GEMINI_PROJECT_DIR/.gemini/hooks/format.sh\"",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "BeforeAgent": [],
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "command": "bash \"$GEMINI_PROJECT_DIR/.gemini/hooks/verify.sh\"",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Notification": [],
+    "SessionStart": [],
+    "SessionEnd": [],
+    "PreCompress": [],
+    "BeforeModel": [],
+    "AfterModel": [],
+    "BeforeToolSelection": []
+  }
+}

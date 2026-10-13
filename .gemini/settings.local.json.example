@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to settings.local.json (already gitignored) to customize for yourself without affecting the team.",
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": "your-personal-dev-project"
+  }
+}
