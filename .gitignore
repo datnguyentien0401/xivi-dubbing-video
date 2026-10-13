@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*service-account*.json
+
+# OS
+.DS_Store
+
+# Firebase CLI local cache
+.firebase/
+
+# A clone of this very repo left over from the initial remote setup step — not
+# actual source, do not commit it into itself.
+/xivi/
+
+# Logs
+*.log
