@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+ENV PORT=8080
+# uvicorn automatically adds cwd to sys.path when resolving "api.main:app" so it
+# runs fine without this line, but alembic (used by the `migrate` service in
+# docker-compose, also built from this Dockerfile) does NOT do that automatically —
+# env.py importing `api.core.config` will raise ModuleNotFoundError without PYTHONPATH.
+ENV PYTHONPATH=/app
+CMD exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT}

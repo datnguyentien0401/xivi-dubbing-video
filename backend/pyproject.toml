@@ -1,0 +1,18 @@
+[project]
+name = "xivi-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# B008 (Depends() in a default arg) is a standard FastAPI idiom, not a bug —
+# enabling it would flag EVERY endpoint that uses Depends(), see FastAPI docs.
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["api", "worker"]
