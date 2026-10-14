@@ -11,6 +11,11 @@ name: Deploy to Cloud Run + Firebase Hosting
 # anywhere) — see docs/architecture.md and the one-time setup this required
 # (workload identity pool "github-pool" + provider "github-provider",
 # restricted to this exact repo, impersonating github-deployer@toonlingo-app).
+#
+# deploy-api and deploy-worker are 2 separate jobs (not 2 steps in 1 job)
+# purely so the Actions UI shows them as distinct boxes in the run graph —
+# they don't depend on each other and could be merged with no behavior
+# change.
 
 on:
   push:
@@ -35,15 +40,14 @@ permissions:
   id-token: write # required to mint the OIDC token for Workload Identity Federation
 
 jobs:
-  deploy-backend:
+  deploy-api:
     runs-on: ubuntu-latest
     outputs:
       api_url: ${{ steps.urls.outputs.api_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - id: auth
-        uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.DEPLOY_SA }}
@@ -60,13 +64,6 @@ jobs:
           docker push "${AR}/toonlingo-api:${{ github.sha }}"
           docker push "${AR}/toonlingo-api:latest"
 
-      - name: Build + push Worker image
-        run: |
-          AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
-          docker build -f backend/Dockerfile.worker -t "${AR}/toonlingo-worker:${{ github.sha }}" -t "${AR}/toonlingo-worker:latest" backend
-          docker push "${AR}/toonlingo-worker:${{ github.sha }}"
-          docker push "${AR}/toonlingo-worker:latest"
-
       - name: Deploy API service
         run: |
           AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
@@ -79,6 +76,34 @@ jobs:
             --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest" \
             --allow-unauthenticated \
             --min-instances 0 --max-instances 10
+
+      - id: urls
+        name: Capture the API URL for the frontend build
+        run: |
+          API_URL=$(gcloud run services describe toonlingo-api --project "$PROJECT_ID" --region "$REGION" --format 'value(status.url)')
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+
+  deploy-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build + push Worker image
+        run: |
+          AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
+          docker build -f backend/Dockerfile.worker -t "${AR}/toonlingo-worker:${{ github.sha }}" -t "${AR}/toonlingo-worker:latest" backend
+          docker push "${AR}/toonlingo-worker:${{ github.sha }}"
+          docker push "${AR}/toonlingo-worker:latest"
 
       - name: Deploy Worker service
         run: |
@@ -102,14 +127,8 @@ jobs:
             --project "$PROJECT_ID" --region "$REGION" \
             --update-env-vars "PUBSUB_PUSH_AUDIENCE=${WORKER_URL}/pubsub/push"
 
-      - id: urls
-        name: Capture the API URL for the frontend build
-        run: |
-          API_URL=$(gcloud run services describe toonlingo-api --project "$PROJECT_ID" --region "$REGION" --format 'value(status.url)')
-          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
-
   deploy-frontend:
-    needs: deploy-backend
+    needs: [deploy-api, deploy-worker]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -133,7 +152,7 @@ jobs:
           VITE_FIREBASE_API_KEY=AIzaSyAlXpOo7im9YFN421OnuhmDx5dCJSeRAfI
           VITE_FIREBASE_AUTH_DOMAIN=toonlingo-app.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID=toonlingo-app
-          VITE_API_BASE_URL=${{ needs.deploy-backend.outputs.api_url }}
+          VITE_API_BASE_URL=${{ needs.deploy-api.outputs.api_url }}
           EOF
 
       - name: Install + build
