@@ -1,0 +1,185 @@
+# Local dev stack for XIVI — do NOT use this to deploy to production (production
+# deploys to Cloud Run + Firebase Hosting, see infra/deploy.sh and AGENTS.md
+# section 2/3). This file exists only so `docker compose up` can run the whole
+# system (Postgres, Redis, api, worker, frontend) on a dev machine without manually
+# installing Python/Node/Postgres/Redis.
+#
+# Host ports are intentionally shifted away from the defaults (5433/6380/8010/8011/5183)
+# so they don't collide with other services already running on the dev machine (Postgres/Redis default to 5432/6379).
+#
+# Run: docker compose up --build
+# A real GEMINI_API_KEY (if you have one) goes in the `.env` file in this directory (see
+# .env.example) — it isn't required to run (GeminiClient initializes
+# lazily, and only errors when Gemini is actually called).
+
+x-backend-env: &backend-env
+  GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-xivi-dev}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  DATABASE_URL: postgresql+asyncpg://xivi:xivi@postgres:5432/xivi
+  REDIS_URL: redis://redis:6379/0
+  GCS_BUCKET_NAME: ${GCS_BUCKET_NAME:-xivi-media}
+  FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-xivi-dev}
+  # Skips verifying a real Firebase ID token, always uses one fixed user — Login.tsx
+  # has not yet implemented real Google Sign-In (see the TODO in that file), so if
+  # this isn't enabled, EVERY request that needs login will always 422 (missing
+  # required header) in local dev. This compose file is NEVER used to deploy for real
+  # (see top of file), so it's safe to default this to "true" here — infra/deploy.sh
+  # doesn't set this variable, so Cloud Run always stays at the default False.
+  AUTH_DEV_BYPASS: "true"
+  # Local dev doesn't have a real GCP service account to sign signed URLs / call Cloud
+  # Storage (see worker/services/gcs_client.py — needs real Application Default
+  # Credentials) — replaced with LocalStorageClient, which saves files to the
+  # `local-media-storage` volume shared between api/worker, served back through the
+  # /local-storage endpoint on the api service itself. Do NOT set this in a real deploy.
+  USE_LOCAL_STORAGE: "true"
+  LOCAL_STORAGE_DIR: /data/local-storage
+  # Must be browser-reachable, not an internal compose hostname — same reason as
+  # VITE_API_BASE_URL below.
+  LOCAL_STORAGE_PUBLIC_BASE_URL: http://localhost:8010
+  # Local dev doesn't have real GCP credentials to publish to Cloud Pub/Sub —
+  # replaced with a direct HTTP call into the worker's /pubsub/push (see
+  # api/core/local_pubsub_client.py). The worker reads this same flag to skip verifying
+  # a real OIDC token (since no real Pub/Sub request is calling in). Do NOT set this in a
+  # real deploy.
+  USE_LOCAL_PUBSUB: "true"
+  # Internal compose network hostname (service name "worker", internal container
+  # port 8080 — NOT the host-published port 8011) — only used by api,
+  # but placed on the shared anchor for simplicity.
+  WORKER_INTERNAL_BASE_URL: http://worker:8080
+  # Local dev doesn't have real GCP credentials to write to Cloud Firestore (see
+  # worker/main.py:_get_firestore) — skips writing realtime status entirely
+  # instead of attempting a connection and failing on every stage transition. Consequence:
+  # the frontend's PipelineStatus.tsx (Firestore listener) won't receive realtime updates in
+  # local dev — use GET /jobs/{id} to poll manually instead. Do NOT set this in a
+  # real deploy.
+  USE_LOCAL_FIRESTORE: "true"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: xivi
+      POSTGRES_PASSWORD: xivi
+      POSTGRES_DB: xivi
+    ports:
+      # Bind loopback-only — default creds (xivi/xivi) + no auth
+      # on Redis below, so publishing on 0.0.0.0 would expose it to the whole
+      # LAN if the dev machine is on an untrusted wifi/network.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - xivi-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xivi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Runs once at `up`, generates/applies migrations then exits — api/worker wait for it
+  # to finish (see backend/AGENTS.md: review the migration file before running upgrade head on
+  # a real DB; in local dev it just runs automatically for convenience).
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    ports:
+      - "8010:8080"
+    environment:
+      <<: *backend-env
+    volumes:
+      # Shared with worker — api writes (uploads) via PUT /local-storage, worker
+      # reads (download_to_path in mux_service.py) from the same file.
+      - local-media-storage:/data/local-storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    ports:
+      - "8011:8080"
+    environment:
+      <<: *backend-env
+      # The real worker verifies the Pub/Sub push OIDC token against this audience — in
+      # local dev there's no real Pub/Sub push calling in, so a placeholder value
+      # is enough, it just needs to let the worker start up.
+      PUBSUB_PUSH_AUDIENCE: ${PUBSUB_PUSH_AUDIENCE:-http://localhost:8011/pubsub/push}
+    volumes:
+      - local-media-storage:/data/local-storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "5183:5173"
+    environment:
+      # The api service is published to the host on port 8010 (see the `api` service above) —
+      # the browser runs outside the compose network, so it must point at the host, not
+      # "http://api:8080" (that hostname only resolves for other containers).
+      VITE_API_BASE_URL: http://localhost:8010
+      # Bind mounts through Docker Desktop don't deliver reliable fs-events to Vite's
+      # watcher — verified (editing a file on the host doesn't trigger HMR). Polling compensates
+      # by actively stat'ing files periodically. See frontend/vite.config.ts.
+      CHOKIDAR_USEPOLLING: "true"
+      # If these 3 variables aren't set -> frontend/src/lib/firebase.ts calls getAuth() with
+      # an empty apiKey -> throws immediately at module load -> React crashes before
+      # rendering -> blank page (this failure was reproduced by hand). The placeholder
+      # here is just enough to pass the Firebase SDK's validation so the app doesn't crash, it is NOT
+      # a real config — real sign-in requires swapping in a real Firebase project
+      # (see frontend/.env.example if running `npm run dev` outside Docker).
+      VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-local-dev-placeholder-key}
+      VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-localhost}
+      VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-xivi-dev}
+    volumes:
+      - ./frontend:/app
+      # A named (not anonymous) volume — easy to inspect/clean up via
+      # `docker compose down -v` instead of leaving behind an anonymous volume each time
+      # the container is recreated. Shadows the host's node_modules (macOS ARM) with
+      # the node_modules already `npm ci`'d inside the image (Linux) — bind-mounting the whole
+      # frontend/ directory above would otherwise overwrite it with the host's node_modules without this line.
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  xivi-postgres-data:
+  frontend-node-modules:
+  local-media-storage:

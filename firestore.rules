@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The worker writes via the Admin SDK (firestore.AsyncClient in worker/main.py) —
+    // which bypasses Security Rules entirely, so this only needs to open up READ access for
+    // the frontend (client SDK, see frontend/src/hooks/useJobStatus.ts). The
+    // jobs/{jobId} doc doesn't currently store a userId, so ownership can't be enforced at
+    // this rules layer yet — it only requires being logged in (enough to block anonymous
+    // access from outside; the data in the doc is only progress status, not
+    // actual video/audio content).
+    match /jobs/{jobId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}
