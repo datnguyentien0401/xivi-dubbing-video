@@ -1,0 +1,146 @@
+name: Deploy to Cloud Run + Firebase Hosting
+
+# Redeploy workflow only — assumes the one-time GCP provisioning already ran
+# by hand (bash infra/deploy.sh <project> <region>): Cloud SQL instance, GCS
+# bucket, Pub/Sub topic/subscription, the toonlingo-run-sa runtime SA, and
+# the 3 Secret Manager secrets (gemini-api-key, redis-url, database-url).
+# This workflow only rebuilds the 2 Cloud Run services + the frontend bundle
+# and pushes them out, the same way infra/deploy.sh's build+deploy steps do.
+#
+# Auth: Workload Identity Federation (no service-account key JSON stored
+# anywhere) — see docs/architecture.md and the one-time setup this required
+# (workload identity pool "github-pool" + provider "github-provider",
+# restricted to this exact repo, impersonating github-deployer@toonlingo-app).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "infra/**"
+      - "firebase.json"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch: {}
+
+env:
+  PROJECT_ID: toonlingo-app
+  REGION: asia-southeast1
+  WORKLOAD_IDENTITY_PROVIDER: projects/765982386020/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  DEPLOY_SA: github-deployer@toonlingo-app.iam.gserviceaccount.com
+  RUNTIME_SA: toonlingo-run-sa@toonlingo-app.iam.gserviceaccount.com
+
+permissions:
+  contents: read
+  id-token: write # required to mint the OIDC token for Workload Identity Federation
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    outputs:
+      api_url: ${{ steps.urls.outputs.api_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build + push API image
+        run: |
+          AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
+          docker build -f backend/Dockerfile.api -t "${AR}/toonlingo-api:${{ github.sha }}" -t "${AR}/toonlingo-api:latest" backend
+          docker push "${AR}/toonlingo-api:${{ github.sha }}"
+          docker push "${AR}/toonlingo-api:latest"
+
+      - name: Build + push Worker image
+        run: |
+          AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
+          docker build -f backend/Dockerfile.worker -t "${AR}/toonlingo-worker:${{ github.sha }}" -t "${AR}/toonlingo-worker:latest" backend
+          docker push "${AR}/toonlingo-worker:${{ github.sha }}"
+          docker push "${AR}/toonlingo-worker:latest"
+
+      - name: Deploy API service
+        run: |
+          AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
+          gcloud run deploy toonlingo-api \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "${AR}/toonlingo-api:${{ github.sha }}" \
+            --service-account "$RUNTIME_SA" \
+            --add-cloudsql-instances "${PROJECT_ID}:${REGION}:toonlingo-pg" \
+            --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-media,FIREBASE_PROJECT_ID=${PROJECT_ID}" \
+            --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest" \
+            --allow-unauthenticated \
+            --min-instances 0 --max-instances 10
+
+      - name: Deploy Worker service
+        run: |
+          AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
+          gcloud run deploy toonlingo-worker \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "${AR}/toonlingo-worker:${{ github.sha }}" \
+            --service-account "$RUNTIME_SA" \
+            --add-cloudsql-instances "${PROJECT_ID}:${REGION}:toonlingo-pg" \
+            --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-media,FIREBASE_PROJECT_ID=${PROJECT_ID}" \
+            --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest" \
+            --no-allow-unauthenticated \
+            --memory=2Gi --cpu=2 \
+            --min-instances 0 --max-instances 5 \
+            --timeout 3600 --concurrency 1
+
+      - name: Re-pin PUBSUB_PUSH_AUDIENCE to the worker's own URL (idempotent)
+        run: |
+          WORKER_URL=$(gcloud run services describe toonlingo-worker --project "$PROJECT_ID" --region "$REGION" --format 'value(status.url)')
+          gcloud run services update toonlingo-worker \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --update-env-vars "PUBSUB_PUSH_AUDIENCE=${WORKER_URL}/pubsub/push"
+
+      - id: urls
+        name: Capture the API URL for the frontend build
+        run: |
+          API_URL=$(gcloud run services describe toonlingo-api --project "$PROJECT_ID" --region "$REGION" --format 'value(status.url)')
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+
+  deploy-frontend:
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SA }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Values below are all public/non-sensitive (a Firebase web client
+      # config + the already-public Cloud Run API URL) — none of this is
+      # secret material, see the comment on frontend/.env.production.local.
+      - name: Write production env
+        working-directory: frontend
+        run: |
+          cat > .env.production.local <<EOF
+          VITE_FIREBASE_API_KEY=AIzaSyAlXpOo7im9YFN421OnuhmDx5dCJSeRAfI
+          VITE_FIREBASE_AUTH_DOMAIN=toonlingo-app.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID=toonlingo-app
+          VITE_API_BASE_URL=${{ needs.deploy-backend.outputs.api_url }}
+          EOF
+
+      - name: Install + build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to Firebase Hosting
+        run: npx firebase-tools deploy --only hosting --project "$PROJECT_ID" --non-interactive
