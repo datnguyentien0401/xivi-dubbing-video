@@ -216,6 +216,36 @@ class DialogueLineUpdate(BaseModel):
     safety_status: Literal["ok", "flagged"] | None = None
 
 
+class VocabularyItemOut(BaseModel):
+    id: UUID
+    term: str
+    meaning: str
+    example_sentence: str
+
+    class Config:
+        from_attributes = True
+
+
+class QuizItemOut(BaseModel):
+    id: UUID
+    question: str
+    answer: str
+
+    class Config:
+        from_attributes = True
+
+
+class EducationalContentOut(BaseModel):
+    """Body of GET /jobs/{id}/educational-content — Agent 7's output
+    (worker/agents/educational_agent.py), persisted to vocabulary_items/
+    quiz_items. Runs off the critical path, so both lists may still be empty
+    once the job reaches ready_for_review (no separate "still generating"
+    status is tracked for it, see docs/agent-pipeline.md)."""
+
+    vocabulary: list[VocabularyItemOut]
+    quiz: list[QuizItemOut]
+
+
 class CharacterOut(BaseModel):
     id: UUID
     name: str

@@ -8,6 +8,7 @@ gemini-pipeline-agent skill).
 
 import logging
 import tempfile
+import time
 
 from worker.agents.dubbing_agent import DubbingAgent
 from worker.agents.educational_agent import EducationalAgent
@@ -85,7 +86,12 @@ class Pipeline:
         context: PipelineContext,
         save_checkpoint,  # async callable(context) -> None — writes to Postgres
         update_realtime_status,  # async callable(context) -> None — writes to Firestore
-    ) -> tuple[PipelineContext, dict]:
+    ) -> tuple[PipelineContext, dict, dict[str, float]]:
+        """Returns (context, educational_result, stage_durations). Each entry
+        in stage_durations is wall-clock seconds spent inside that one
+        agent's run() (or mux_for_job) — excludes save_checkpoint/
+        update_realtime_status so it reflects pure per-agent processing time,
+        for performance benchmarking (see docs/agent-pipeline.md)."""
         start_index = _stage_index(context.current_stage)
         # A script-first job (no real recording, specs/003-script-first-
         # ingestion) has nothing for IngestionAgent to transcribe —
@@ -108,12 +114,22 @@ class Pipeline:
         if context.source_video_gcs_uri is not None:
             stages = [*stages, ("muxed", None)]
 
+        stage_durations: dict[str, float] = {}
+
         for stage_name, agent in stages[start_index:]:
             logger.info("job %s: running stage %s", context.job_id, stage_name)
+            stage_started_at = time.perf_counter()
             if stage_name == "muxed":
                 context = await self._run_mux_stage(context)
             else:
                 context = await agent.run(context)
+            stage_durations[stage_name] = time.perf_counter() - stage_started_at
+            logger.info(
+                "job %s: stage %s finished in %.2fs",
+                context.job_id,
+                stage_name,
+                stage_durations[stage_name],
+            )
             context.current_stage = stage_name
             await save_checkpoint(context)
             await update_realtime_status(context)
@@ -121,9 +137,16 @@ class Pipeline:
         # Educational content runs in parallel/last, does NOT block the
         # critical path and MUST NOT fail the whole job if it errors (see
         # educational_agent.py)
+        educational_started_at = time.perf_counter()
         educational_result = await self._educational.run(context)
+        stage_durations["educational"] = time.perf_counter() - educational_started_at
+        logger.info(
+            "job %s: stage educational finished in %.2fs",
+            context.job_id,
+            stage_durations["educational"],
+        )
         context.current_stage = "ready_for_review"
         await save_checkpoint(context)
         await update_realtime_status(context)
 
-        return context, educational_result
+        return context, educational_result, stage_durations

@@ -1762,3 +1762,83 @@ async def test_approve_job_409_for_audio_only_job_not_ready_for_review(session: 
             user=CurrentUser(id=owner.id, firebase_uid=owner.firebase_uid, email=owner.email),
         )
     assert exc_info.value.status_code == 409
+
+
+async def test_get_educational_content_returns_vocabulary_and_quiz(
+    session: AsyncSession, owner_and_line
+):
+    """Agent 7 (EducationalAgent) used to generate vocabulary + quiz but only
+    vocabulary ever got persisted, and nothing exposed either one through the
+    API — this endpoint is what EduPreview.tsx (docs/frontend-spec.md 3.6) reads."""
+    from api.core.firebase_auth import CurrentUser
+    from api.db.models import QuizItem, VocabularyItem
+    from api.routers import jobs as jobs_router
+
+    owner, _line, job = owner_and_line
+    session.add(
+        VocabularyItem(
+            job_id=job.id, term="xin chào", meaning="hello", example_sentence="Xin chào!"
+        )
+    )
+    session.add(
+        QuizItem(job_id=job.id, question="What does 'xin chào' mean?", answer="hello")
+    )
+    await session.flush()
+
+    response = await jobs_router.get_educational_content(
+        job_id=job.id,
+        session=session,
+        user=CurrentUser(id=owner.id, firebase_uid=owner.firebase_uid, email=owner.email),
+    )
+
+    assert len(response.vocabulary) == 1
+    assert response.vocabulary[0].term == "xin chào"
+    assert len(response.quiz) == 1
+    assert response.quiz[0].answer == "hello"
+
+
+async def test_get_educational_content_empty_when_not_generated_yet(
+    session: AsyncSession, owner_and_line
+):
+    """Agent 7 runs off the critical path and never fails the pipeline (see
+    worker/agents/educational_agent.py) — a job that hasn't finished
+    generating educational content yet (or whose Gemini call errored) must
+    return empty lists, not a 404/500."""
+    from api.core.firebase_auth import CurrentUser
+    from api.routers import jobs as jobs_router
+
+    owner, _line, job = owner_and_line
+
+    response = await jobs_router.get_educational_content(
+        job_id=job.id,
+        session=session,
+        user=CurrentUser(id=owner.id, firebase_uid=owner.firebase_uid, email=owner.email),
+    )
+
+    assert response.vocabulary == []
+    assert response.quiz == []
+
+
+async def test_get_educational_content_404_for_other_users_job(
+    session: AsyncSession, owner_and_line
+):
+    from api.core.firebase_auth import CurrentUser
+    from api.db.models import User
+    from api.routers import jobs as jobs_router
+
+    _owner, _line, job = owner_and_line
+    other_user = User(
+        firebase_uid=f"other-{uuid.uuid4()}", email=f"other-{uuid.uuid4()}@test.local"
+    )
+    session.add(other_user)
+    await session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await jobs_router.get_educational_content(
+            job_id=job.id,
+            session=session,
+            user=CurrentUser(
+                id=other_user.id, firebase_uid=other_user.firebase_uid, email=other_user.email
+            ),
+        )
+    assert exc_info.value.status_code == 404

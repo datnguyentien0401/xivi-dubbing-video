@@ -131,3 +131,82 @@ async def test_list_project_jobs_404_for_other_users_project(
             session=session,
         )
     assert exc_info.value.status_code == 404
+
+
+async def test_delete_source_video_removes_video_and_its_job(
+    session: AsyncSession, two_owners_with_projects
+):
+    from fastapi import BackgroundTasks
+
+    from api.core.firebase_auth import CurrentUser
+    from api.routers import projects as projects_router
+
+    data = two_owners_with_projects
+    owner_a = data["owner_a"]
+    background_tasks = BackgroundTasks()
+
+    await projects_router.delete_source_video(
+        project_id=data["project_a"].id,
+        video_id=data["video_a"].id,
+        background_tasks=background_tasks,
+        user=CurrentUser(id=owner_a.id, firebase_uid=owner_a.firebase_uid, email=owner_a.email),
+        session=session,
+    )
+
+    assert (await session.get(SourceVideo, data["video_a"].id)) is None
+    assert (await session.get(Job, data["job_a"].id)) is None
+    # The video's project itself must survive — this only deletes 1 video.
+    assert (await session.get(Project, data["project_a"].id)) is not None
+    # 1 blob-cleanup task scheduled (just the original video — job_a has no
+    # muxed/exported video or dubbed dialogue lines in this fixture).
+    assert len(background_tasks.tasks) == 1
+
+
+async def test_delete_source_video_404_for_other_users_video(
+    session: AsyncSession, two_owners_with_projects
+):
+    """IDOR check: owner_a must NOT be able to delete owner_b's video."""
+    from fastapi import BackgroundTasks
+
+    from api.core.firebase_auth import CurrentUser
+    from api.routers import projects as projects_router
+
+    data = two_owners_with_projects
+    owner_a = data["owner_a"]
+
+    with pytest.raises(HTTPException) as exc_info:
+        await projects_router.delete_source_video(
+            project_id=data["project_b"].id,
+            video_id=data["video_b"].id,
+            background_tasks=BackgroundTasks(),
+            user=CurrentUser(id=owner_a.id, firebase_uid=owner_a.firebase_uid, email=owner_a.email),
+            session=session,
+        )
+    assert exc_info.value.status_code == 404
+    assert (await session.get(SourceVideo, data["video_b"].id)) is not None
+
+
+async def test_delete_source_video_404_when_project_id_does_not_match(
+    session: AsyncSession, two_owners_with_projects
+):
+    """video_a genuinely belongs to owner_a, but not to project_b — passing
+    project_b's id in the URL path must 404, not silently delete video_a
+    under the wrong project."""
+    from fastapi import BackgroundTasks
+
+    from api.core.firebase_auth import CurrentUser
+    from api.routers import projects as projects_router
+
+    data = two_owners_with_projects
+    owner_a = data["owner_a"]
+
+    with pytest.raises(HTTPException) as exc_info:
+        await projects_router.delete_source_video(
+            project_id=data["project_b"].id,
+            video_id=data["video_a"].id,
+            background_tasks=BackgroundTasks(),
+            user=CurrentUser(id=owner_a.id, firebase_uid=owner_a.firebase_uid, email=owner_a.email),
+            session=session,
+        )
+    assert exc_info.value.status_code == 404
+    assert (await session.get(SourceVideo, data["video_a"].id)) is not None

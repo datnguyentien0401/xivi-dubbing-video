@@ -198,3 +198,14 @@ earlier stage) — it does not re-run translation/safety/dubbing.
 | 4. Cultural Safety | translated_text + safety_rules | safety_status + reasoning | Gemini text (reasoning) |
 | 5. Dubbing/TTS | translated_text (approved) + character voice | audio clip | Gemini Native Audio |
 | 7. Educational Content | translated_text (whole episode) | vocabulary + quiz | Gemini text |
+
+## Per-agent latency
+
+`Pipeline.run()` (`backend/worker/pipeline.py`) times each stage's
+`agent.run()` call (and the mux step) with `time.perf_counter()`, logs it,
+and returns a `stage_durations: dict[str, float]` (seconds) alongside the
+usual `(context, educational_result)` — excludes checkpoint/Firestore
+writes, so it reflects pure per-agent processing time. Run
+`python -m scripts.benchmark_pipeline <job_id>` (`backend/scripts/
+benchmark_pipeline.py`) against a real job to print a latency breakdown and
+append it to `benchmark_results.jsonl` for comparing across runs.

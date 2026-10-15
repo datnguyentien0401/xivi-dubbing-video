@@ -64,6 +64,24 @@ jobs:
           docker push "${AR}/toonlingo-api:${{ github.sha }}"
           docker push "${AR}/toonlingo-api:latest"
 
+      # Run BEFORE deploying the service below — see the matching comment in
+      # infra/deploy.sh for the real incident this fixed (Cloud SQL never
+      # ran a migration past the first deploy, so a later-added column
+      # didn't exist and every GET /projects/{id}/jobs call 500'd). Idempotent.
+      - name: Run DB migrations (alembic upgrade head)
+        run: |
+          AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"
+          gcloud run jobs deploy toonlingo-migrate \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "${AR}/toonlingo-api:${{ github.sha }}" \
+            --command alembic --args upgrade,head \
+            --service-account "$RUNTIME_SA" \
+            --set-cloudsql-instances "${PROJECT_ID}:${REGION}:toonlingo-pg" \
+            --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-media,FIREBASE_PROJECT_ID=${PROJECT_ID}" \
+            --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest" \
+            --max-retries 0 \
+            --execute-now --wait
+
       - name: Deploy API service
         run: |
           AR="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy"

@@ -68,6 +68,24 @@ export function useSourceVideos(projectId: string | undefined) {
   });
 }
 
+/** Used by the per-video "Delete" button on ProjectDetail.tsx — removes 1
+ * video + every job/dialogue-line tied to it (not the whole project, see
+ * useDeleteProject above). Invalidates both queries since deleting a video
+ * also deletes its jobs. */
+export function useDeleteSourceVideo(projectId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (videoId: string) =>
+      apiFetch<void>(`/projects/${projectId}/source-videos/${videoId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["source-videos", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-jobs", projectId] });
+    },
+  });
+}
+
 export function useProjectJobs(projectId: string | undefined) {
   return useQuery({
     queryKey: ["project-jobs", projectId],

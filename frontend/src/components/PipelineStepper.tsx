@@ -16,21 +16,25 @@ const STAGES = [
  * runs (see docs/frontend-spec.md section 3.3). Receives data via
  * useJobStatus (Firestore).
  */
+// The only 2 real current_stage values that are both (a) outside the 7-stage
+// list below and (b) only reachable after the job already passed through
+// every one of those stages at least once — "exporting" (Video Editor
+// export) and "muxing" (Attach Video), see worker/main.py. _STAGE_ORDER in
+// worker/pipeline.py always ends at "ready_for_review" before any later
+// export/attach can run, so seeing either of these means "all done, doing
+// something else now". This must be an explicit allowlist, NOT "anything not
+// in STAGES" — current_stage also starts as "queued" (the Job model's own
+// default, see api/db/models.py) before the worker has picked up a
+// brand-new job, which is equally outside the 7-stage list but means the
+// exact opposite (hasn't started yet). Real bug found via user feedback:
+// treating every not-in-list value as "done" showed every step green on a
+// job's very first run.
+const POST_COMPLETION_STAGES = new Set(["exporting", "muxing"]);
+
 export function PipelineStepper({ status }: { status: JobStatus | null }) {
   const currentIndex = STAGES.findIndex((s) => s.key === status?.currentStage);
-  // currentIndex is -1 whenever current_stage is a value outside this
-  // 7-stage list — "exporting" (Video Editor export) or "muxing" (Attach
-  // Video) are the only 2 real values this ever happens for (see
-  // worker/main.py), and BOTH are only reachable after the job already
-  // passed through every one of these stages at least once (_STAGE_ORDER
-  // in worker/pipeline.py always ends at "ready_for_review" before any
-  // later export/attach can run) — so -1 unambiguously means "all done,
-  // doing something else now", not "hasn't started yet". Found via
-  // code-reviewer while fixing the "published" shortcut above: without
-  // this, navigating to /jobs/{id}/status during a later export/attach
-  // showed every step gray/pending, misleadingly implying nothing had
-  // happened yet for an already-fully-processed job.
-  const alreadyCompletedPipeline = currentIndex === -1 && !!status;
+  const alreadyCompletedPipeline =
+    !!status && POST_COMPLETION_STAGES.has(status.currentStage);
 
   return (
     <ol className="flex flex-col gap-3">
@@ -51,8 +55,27 @@ export function PipelineStepper({ status }: { status: JobStatus | null }) {
         // value for this exact "can revisit earlier stages" case (see the
         // reasoning on useJobStatusPollFallback in useJobStatus.ts) — no
         // need for a "published" shortcut at all.
-        const isDone = currentIndex > index || alreadyCompletedPipeline;
-        const isActive = currentIndex === index;
+        //
+        // `isActive` highlights the row AFTER currentIndex, not currentIndex
+        // itself — another real bug found via user feedback ("stuck at
+        // Dubbing for a long time" when the job had actually already moved
+        // on to Mux). `context.current_stage` (worker/pipeline.py) is
+        // written ONLY AFTER a stage's agent finishes — it is a
+        // last-completed checkpoint (needed as-is for crash/resume, see
+        // _stage_index in pipeline.py), not a "this is running right now"
+        // signal. The pipeline's for-loop moves on to the NEXT stage
+        // immediately once a checkpoint is saved, so whatever is actually
+        // executing at any moment is always 1 stage ahead of the value this
+        // component receives — e.g. currentStage "dubbed" means Dubbing
+        // already finished and Mux (the slow, CPU-bound ffmpeg step) is what
+        // is really in progress. Shifting the active marker forward by one
+        // index displays the stage that is actually running, including
+        // Transcription itself right after job creation (currentStage
+        // "queued", outside STAGES — see POST_COMPLETION_STAGES above —
+        // correctly maps to index 0 being active instead of nothing).
+        const isDone = currentIndex >= index || alreadyCompletedPipeline;
+        const isActive =
+          !!status && !alreadyCompletedPipeline && currentIndex + 1 === index;
         return (
           <li key={stage.key} className="flex items-center gap-3">
             <span

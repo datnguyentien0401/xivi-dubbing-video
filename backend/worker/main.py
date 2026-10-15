@@ -24,6 +24,7 @@ from api.core.config import settings
 from api.db.models import Character as CharacterRow
 from api.db.models import CulturalSafetyRule, Job, Project, SourceVideo
 from api.db.models import DialogueLine as DialogueLineRow
+from api.db.models import QuizItem as QuizItemRow
 from api.db.models import VocabularyItem as VocabularyItemRow
 from api.db.session import AsyncSessionLocal
 from api.schemas.schemas import TimelineState
@@ -247,6 +248,14 @@ async def _save_educational_result(job_id: str, educational_result: dict) -> Non
                     term=item["term"],
                     meaning=item["meaning"],
                     example_sentence=item["example_sentence"],
+                )
+            )
+        for item in educational_result.get("quiz", []):
+            session.add(
+                QuizItemRow(
+                    job_id=uuid.UUID(job_id),
+                    question=item["question"],
+                    answer=item["answer"],
                 )
             )
         await session.commit()
@@ -636,7 +645,18 @@ async def handle_pubsub_push(request: Request):
         return {"status": "processed"}
 
     job_id = payload["job_id"]
+    status, _stage_durations = await _process_job(job_id)
+    return {"status": status}
 
+
+async def _process_job(job_id: str) -> tuple[str, dict[str, float] | None]:
+    """Core per-job pipeline processing — extracted from handle_pubsub_push's
+    "job" branch so scripts/benchmark_pipeline.py (per-agent latency
+    benchmarking) can run a real job through the real pipeline directly,
+    without faking a Pub/Sub push request. Returns (status, stage_durations)
+    — stage_durations is None for either "skipped_duplicate" or
+    "already_done" (nothing ran), see pipeline.py::Pipeline.run for the
+    "processed" case."""
     # Pub/Sub redelivers a message when the previous attempt errored/timed out
     # — without a lock, multiple requests for the same job_id would run
     # concurrently, each reading current_stage at the start and checkpointing
@@ -652,7 +672,7 @@ async def handle_pubsub_push(request: Request):
         logger.info(
             "job %s: already being processed by another request, skipping duplicate", job_id
         )
-        return {"status": "skipped_duplicate"}
+        return "skipped_duplicate", None
 
     try:
         logger.info("Received job %s", job_id)
@@ -668,15 +688,15 @@ async def handle_pubsub_push(request: Request):
         # Block it right here, no need to enter the pipeline.
         if context.current_stage == "ready_for_review":
             logger.info("job %s: already ready_for_review, skipping late redelivery", job_id)
-            return {"status": "already_done"}
-        context, educational_result = await _pipeline.run(
+            return "already_done", None
+        context, educational_result, stage_durations = await _pipeline.run(
             context, _save_checkpoint, _update_realtime_status
         )
+        logger.info("job %s: stage latency breakdown (seconds): %s", job_id, stage_durations)
         await _save_educational_result(job_id, educational_result)
+        return "processed", stage_durations
     finally:
         await _redis.release_lock(lock_key)
-
-    return {"status": "processed"}
 
 
 @app.get("/healthz")

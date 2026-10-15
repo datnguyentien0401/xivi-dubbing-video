@@ -7,16 +7,24 @@ it only does CRUD + signed URL generation.
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.config import settings
 from api.core.firebase_auth import CurrentUser, get_current_user
 from api.core.local_pubsub_client import schedule_local_job_created
-from api.core.ownership import get_owned_project
+from api.core.ownership import get_owned_project, get_owned_source_video
 from api.core.pubsub_client import publish_job_created
-from api.db.models import Character, DialogueLine, Job, Project, SourceVideo, VocabularyItem
+from api.db.models import (
+    Character,
+    DialogueLine,
+    Job,
+    Project,
+    QuizItem,
+    SourceVideo,
+    VocabularyItem,
+)
 from api.db.session import get_session
 from api.schemas.schemas import (
     JobOut,
@@ -39,6 +47,21 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 # via to_thread). GCSClient or LocalStorageClient depending on
 # settings.use_local_storage — see worker/services/storage.py.
 _storage = build_storage_client()
+
+
+async def _delete_blobs(uris: list[str]) -> None:
+    """Runs as a FastAPI background task (see delete_source_video below) —
+    GCS network calls are too slow to do on the request path (skill
+    fastapi-agent-endpoint: an endpoint must not block for more than
+    ~200ms). Best-effort: one failed delete must not stop the rest, and must
+    not resurface to a client that already got its 204 response — the DB
+    rows are already gone by the time this runs, so there's no retry path
+    other than a future manual bucket cleanup."""
+    for uri in uris:
+        try:
+            await _storage.delete(uri)
+        except Exception:  # noqa: BLE001 - best-effort cleanup, see docstring above
+            logger.exception("delete_source_video: failed to delete blob %s", uri)
 
 
 @router.post("", response_model=ProjectOut)
@@ -270,12 +293,74 @@ async def delete_project(
     if job_ids:
         await session.execute(delete(DialogueLine).where(DialogueLine.job_id.in_(job_ids)))
         await session.execute(delete(VocabularyItem).where(VocabularyItem.job_id.in_(job_ids)))
+        await session.execute(delete(QuizItem).where(QuizItem.job_id.in_(job_ids)))
         await session.execute(delete(Job).where(Job.id.in_(job_ids)))
     if video_ids:
         await session.execute(delete(SourceVideo).where(SourceVideo.id.in_(video_ids)))
     await session.execute(delete(Character).where(Character.project_id == project_id))
     await session.execute(delete(Project).where(Project.id == project_id))
     await session.commit()
+
+
+@router.delete("/{project_id}/source-videos/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_source_video(
+    project_id: uuid.UUID,
+    video_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete 1 video from the Project Detail page (frontend/src/pages/
+    ProjectDetail.tsx) — removes the video + every job/dialogue-line/
+    vocabulary/quiz row tied to it, then best-effort deletes the associated
+    GCS blobs (original video, each job's muxed/exported video, each dialogue
+    line's dubbed audio) in a background task (see _delete_blobs above).
+
+    Does NOT touch Character rows — characters (and their voice samples) are
+    shared across every video/job in the project (see
+    worker/agents/voice_profiling_agent.py), not owned by a single video, so
+    they must survive this video's deletion unlike delete_project above
+    (which removes the whole project, characters included)."""
+    video = await get_owned_source_video(session, video_id, user.id)
+    if video.project_id != project_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Resource not found")
+
+    job_ids = (
+        (await session.execute(select(Job.id).where(Job.source_video_id == video_id)))
+        .scalars()
+        .all()
+    )
+
+    blob_uris: list[str] = [video.gcs_uri]
+    if job_ids:
+        jobs = (await session.execute(select(Job).where(Job.id.in_(job_ids)))).scalars().all()
+        for job in jobs:
+            if job.muxed_video_gcs_uri:
+                blob_uris.append(job.muxed_video_gcs_uri)
+            if job.exported_video_gcs_uri:
+                blob_uris.append(job.exported_video_gcs_uri)
+        dubbed_uris = (
+            (
+                await session.execute(
+                    select(DialogueLine.dubbed_audio_gcs_uri).where(
+                        DialogueLine.job_id.in_(job_ids),
+                        DialogueLine.dubbed_audio_gcs_uri.is_not(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        blob_uris.extend(dubbed_uris)
+
+        await session.execute(delete(DialogueLine).where(DialogueLine.job_id.in_(job_ids)))
+        await session.execute(delete(VocabularyItem).where(VocabularyItem.job_id.in_(job_ids)))
+        await session.execute(delete(QuizItem).where(QuizItem.job_id.in_(job_ids)))
+        await session.execute(delete(Job).where(Job.id.in_(job_ids)))
+    await session.execute(delete(SourceVideo).where(SourceVideo.id == video_id))
+    await session.commit()
+
+    background_tasks.add_task(_delete_blobs, blob_uris)
 
 
 @router.post("/{project_id}/upload-url", response_model=UploadUrlResponse)

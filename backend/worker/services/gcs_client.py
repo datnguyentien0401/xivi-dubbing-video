@@ -7,6 +7,7 @@ backend AGENTS.md: every I/O function must be async def).
 
 import asyncio
 
+from google.api_core.exceptions import NotFound
 from google.cloud import storage
 
 
@@ -118,3 +119,15 @@ class GCSClient:
         return await asyncio.to_thread(
             self._sign_blob_url, blob_name, "GET", None, expiration_minutes, response_disposition
         )
+
+    async def delete(self, gcs_uri: str) -> None:
+        """Idempotent — deleting an already-gone blob is a no-op rather than
+        an error, since callers (e.g. api/routers/projects.py::
+        delete_source_video) treat this as best-effort cleanup, not a
+        critical step the caller needs to retry on failure."""
+        bucket = self._get_bucket()
+        blob_name = gcs_uri.removeprefix(f"gs://{bucket.name}/")
+        try:
+            await asyncio.to_thread(bucket.blob(blob_name).delete)
+        except NotFound:
+            pass

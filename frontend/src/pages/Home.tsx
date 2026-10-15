@@ -145,7 +145,7 @@ function Logo({ className = "" }: { className?: string }) {
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Logo />
           <div className="flex items-center gap-8">
@@ -307,7 +307,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t px-6 py-8 text-center text-sm text-muted-foreground">
+      <footer className="border-t bg-white px-6 py-4 text-center text-sm text-muted-foreground">
         XIVI Studio — localization for kids' animated video.
       </footer>
     </div>

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
+  BookOpen,
   CheckCircle2,
   Download,
   Film,
@@ -511,6 +512,14 @@ export default function ReviewDashboard() {
               <Link to={`/projects/${job.project_id}/voices`}>
                 <Mic size={16} />
                 Manage Voices
+              </Link>
+            </Button>
+          )}
+          {jobId && (
+            <Button asChild variant="outline">
+              <Link to={`/jobs/${jobId}/educational`}>
+                <BookOpen size={16} />
+                Educational Content
               </Link>
             </Button>
           )}

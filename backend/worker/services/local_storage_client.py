@@ -107,3 +107,14 @@ class LocalStorageClient:
             # header itself (see api/routers/local_storage.py::get_object).
             url += f"?download_filename={quote(download_filename)}"
         return url
+
+    async def delete(self, uri: str) -> None:
+        """Idempotent — see GCSClient.delete for why a missing file is not an
+        error here."""
+        blob_name = self._uri_to_blob_name(uri)
+        path = _safe_path(self._root, blob_name)
+
+        def _remove():
+            path.unlink(missing_ok=True)
+
+        await asyncio.to_thread(_remove)

@@ -24,6 +24,7 @@ erDiagram
     JOBS ||--o{ DIALOGUE_LINES : produces
     DIALOGUE_LINES }o--|| CHARACTERS : "spoken by"
     JOBS ||--o{ VOCABULARY_ITEMS : generates
+    JOBS ||--o{ QUIZ_ITEMS : generates
     PROJECTS ||--o{ CULTURAL_SAFETY_RULES : "applies per target market"
 
     USERS {
@@ -96,6 +97,13 @@ erDiagram
         string example_sentence
     }
 
+    QUIZ_ITEMS {
+        uuid id PK
+        uuid job_id FK
+        text question
+        text answer
+    }
+
     CULTURAL_SAFETY_RULES {
         uuid id PK
         string target_market
@@ -144,7 +152,7 @@ erDiagram
   the original AI version is never overwritten when the creator exports a new
   edit.
 - **`cultural_safety_rules`** is a separate table instead of being hardcoded in
-  code (per Principle #6 in `AGENTS.md` / `GEMINI.md`) — allows adding rules for a new
+  code (per Principle #6 in `GEMINI.md`) — allows adding rules for a new
   country (e.g. Indonesia, Philippines) without redeploying code, just by
   inserting data
 - **`dialogue_lines.is_song`**: a flag used by `TranslationAgent` to choose the

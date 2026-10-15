@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
+import EduPreview from "./pages/EduPreview";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import NewProject from "./pages/NewProject";
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/jobs/:jobId/status" element={<PipelineStatus />} />
           <Route path="/jobs/:jobId/review" element={<ReviewDashboard />} />
           <Route path="/jobs/:jobId/editor" element={<VideoEditor />} />
+          <Route path="/jobs/:jobId/educational" element={<EduPreview />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

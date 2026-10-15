@@ -35,6 +35,8 @@ class StorageClient(Protocol):
         self, gcs_uri: str, expiration_minutes: int = 60, download_filename: str | None = None
     ) -> str: ...
 
+    async def delete(self, uri: str) -> None: ...
+
 
 def build_storage_client() -> StorageClient:
     if settings.use_local_storage:

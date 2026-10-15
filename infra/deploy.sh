@@ -138,6 +138,28 @@ echo "== Build + push Worker image =="
 docker build --platform linux/amd64 -f backend/Dockerfile.worker -t "${AR_PREFIX}/toonlingo-worker:latest" backend
 docker push "${AR_PREFIX}/toonlingo-worker:latest"
 
+# Run BEFORE deploying the API/Worker services below — the new code in this
+# deploy may assume columns/tables that don't exist yet, see the real
+# incident this fixed: Cloud SQL had never run a migration past the very
+# first deploy (nothing in this script did it), so `jobs.project_id` (added
+# by a later migration, specs/003-script-first-ingestion) didn't exist,
+# every GET /projects/{id}/jobs call raised UndefinedColumnError, and the
+# Project Detail page silently showed "No translations yet" instead of the
+# real jobs. Uses the SAME image as the `api` service (just a different
+# entrypoint) — exactly mirrors docker-compose.yml's local `migrate` service.
+# `alembic upgrade head` is idempotent (a no-op if already current), so safe
+# to run on every deploy, not just when a migration was actually added.
+echo "== Run DB migrations (alembic upgrade head — idempotent) =="
+gcloud run jobs deploy toonlingo-migrate \
+  --project "$PROJECT_ID" --region "$REGION" \
+  --image "${AR_PREFIX}/toonlingo-api:latest" \
+  --command alembic --args upgrade,head \
+  --service-account "$SA_EMAIL" \
+  --set-cloudsql-instances "$INSTANCE_CONN" \
+  --set-env-vars "$COMMON_ENV" --set-secrets "$COMMON_SECRETS" \
+  --max-retries 0 \
+  --execute-now --wait
+
 echo "== Deploy API service =="
 gcloud run deploy toonlingo-api \
   --project "$PROJECT_ID" --region "$REGION" \

@@ -32,3 +32,6 @@ dist/
 
 # Logs
 *.log
+
+# Local benchmark output (backend/scripts/benchmark_pipeline.py)
+backend/scripts/benchmark_results.jsonl

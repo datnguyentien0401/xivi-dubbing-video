@@ -8,6 +8,7 @@ Mocks every agent (AsyncMock) and monkeypatches mux_for_job — no real
 Gemini/ffmpeg/GCS calls, per AGENTS.md's "no need to call Gemini for real in
 tests"."""
 
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -74,7 +75,7 @@ async def test_script_first_job_uses_script_benchmark_not_ingestion_and_skips_mu
     monkeypatch.setattr(pipeline_module, "mux_for_job", mux_for_job)
     context = _context(source_video_gcs_uri=None)
 
-    result, _educational_result = await pipeline.run(
+    result, _educational_result, _stage_durations = await pipeline.run(
         context, save_checkpoint=AsyncMock(), update_realtime_status=AsyncMock()
     )
 
@@ -95,7 +96,7 @@ async def test_video_first_job_uses_ingestion_not_script_benchmark_and_runs_mux(
     monkeypatch.setattr(pipeline_module, "mux_for_job", mux_for_job)
     context = _context(source_video_gcs_uri="gs://bucket/src.mp4")
 
-    result, _educational_result = await pipeline.run(
+    result, _educational_result, _stage_durations = await pipeline.run(
         context, save_checkpoint=AsyncMock(), update_realtime_status=AsyncMock()
     )
 
@@ -116,7 +117,7 @@ async def test_resuming_a_script_first_job_already_dubbed_skips_straight_to_read
     monkeypatch.setattr(pipeline_module, "mux_for_job", mux_for_job)
     context = _context(source_video_gcs_uri=None, current_stage="dubbed")
 
-    result, _educational_result = await pipeline.run(
+    result, _educational_result, _stage_durations = await pipeline.run(
         context, save_checkpoint=AsyncMock(), update_realtime_status=AsyncMock()
     )
 
@@ -135,7 +136,7 @@ async def test_resuming_a_video_first_job_already_dubbed_only_runs_mux(
     monkeypatch.setattr(pipeline_module, "mux_for_job", mux_for_job)
     context = _context(source_video_gcs_uri="gs://bucket/src.mp4", current_stage="dubbed")
 
-    result, _educational_result = await pipeline.run(
+    result, _educational_result, _stage_durations = await pipeline.run(
         context, save_checkpoint=AsyncMock(), update_realtime_status=AsyncMock()
     )
 
@@ -145,3 +146,42 @@ async def test_resuming_a_video_first_job_already_dubbed_only_runs_mux(
         agent.run.assert_not_awaited()
     mux_for_job.assert_awaited_once()
     assert result.current_stage == "ready_for_review"
+
+
+async def test_run_returns_one_duration_per_stage_actually_run(
+    pipeline, agents, monkeypatch
+):
+    """Performance-benchmarking support (per-agent latency, see
+    docs/agent-pipeline.md): stage_durations must have exactly one entry per
+    stage that actually ran this call — including "educational" — and must
+    NOT include a stage that was skipped (e.g. "muxed" for a script-first
+    job with no video, see test_script_first_job_... above)."""
+    mux_for_job = AsyncMock()
+    monkeypatch.setattr(pipeline_module, "mux_for_job", mux_for_job)
+    # translation is made measurably slower than the rest, so a real
+    # time.perf_counter() bug (e.g. measuring the wrong span, or always
+    # returning 0) would show up as a wrong ordering, not just a missing key.
+    slow_delay_seconds = 0.05
+
+    async def slow_run(context):
+        await asyncio.sleep(slow_delay_seconds)
+        return context
+
+    agents["translation"].run.side_effect = slow_run
+    context = _context(source_video_gcs_uri=None)
+
+    _result, _educational_result, stage_durations = await pipeline.run(
+        context, save_checkpoint=AsyncMock(), update_realtime_status=AsyncMock()
+    )
+
+    assert set(stage_durations.keys()) == {
+        "transcribed",
+        "voice_profiled",
+        "translated",
+        "safety_checked",
+        "dubbed",
+        "educational",
+    }
+    assert all(duration >= 0 for duration in stage_durations.values())
+    assert stage_durations["translated"] >= slow_delay_seconds
+    assert stage_durations["translated"] > stage_durations["safety_checked"]

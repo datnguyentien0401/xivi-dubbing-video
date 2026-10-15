@@ -2,10 +2,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Activity, Eye, FileVideo, Mic, Plus, Trash2 } from "lucide-react";
 import {
   useDeleteProject,
+  useDeleteSourceVideo,
   useProjectJobs,
   useProjects,
   useSourceVideos,
 } from "@/hooks/useProjects";
+import type { SourceVideo } from "@/hooks/useProjects";
 import type { Job } from "@/hooks/useDialogueLines";
 import { EditableProjectName } from "@/components/EditableProjectName";
 import { TARGET_LANGUAGE_BY_CODE } from "@/lib/targetLanguages";
@@ -105,6 +107,62 @@ function JobRow({ job }: { job: Job }) {
   );
 }
 
+/** 1 Card per uploaded video, with its own "Delete" button — removes just
+ * this video + its jobs/dialogue-lines/GCS files, not the whole project
+ * (see useDeleteSourceVideo). */
+function VideoCard({
+  projectId,
+  video,
+  jobs,
+}: {
+  projectId: string;
+  video: SourceVideo;
+  jobs: Job[];
+}) {
+  const deleteSourceVideo = useDeleteSourceVideo(projectId);
+  const duration = formatDuration(video.duration_seconds);
+  const filename = video.gcs_uri.split("/").pop();
+
+  function handleDeleteVideo() {
+    if (
+      !window.confirm(
+        `Delete video "${filename ?? ""}"? Every translation/job for it will be removed too.`,
+      )
+    ) {
+      return;
+    }
+    deleteSourceVideo.mutate(video.id);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileVideo size={16} className="text-muted-foreground" />
+            {filename}
+          </CardTitle>
+          {duration && (
+            <CardDescription>Duration: {duration}</CardDescription>
+          )}
+        </div>
+        <Button
+          variant="destructiveOutline"
+          size="sm"
+          onClick={handleDeleteVideo}
+          disabled={deleteSourceVideo.isPending}
+        >
+          <Trash2 size={14} />
+          Delete
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <JobTable jobs={jobs} />
+      </CardContent>
+    </Card>
+  );
+}
+
 function JobTable({ jobs }: { jobs: Job[] }) {
   if (jobs.length === 0) {
     return (
@@ -149,7 +207,7 @@ export default function ProjectDetail() {
   // post-submit redirect to /jobs/{id}/status.
   const scriptJobs = jobs?.filter((j) => j.source_video_id === null) ?? [];
 
-  if (loadingVideos || loadingJobs) {
+  if (loadingVideos || loadingJobs || !projectId) {
     return <p className="p-6 text-muted-foreground">Loading...</p>;
   }
 
@@ -221,22 +279,13 @@ export default function ProjectDetail() {
         {videos?.map((video) => {
           const videoJobs =
             jobs?.filter((j) => j.source_video_id === video.id) ?? [];
-          const duration = formatDuration(video.duration_seconds);
           return (
-            <Card key={video.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FileVideo size={16} className="text-muted-foreground" />
-                  {video.gcs_uri.split("/").pop()}
-                </CardTitle>
-                {duration && (
-                  <CardDescription>Duration: {duration}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <JobTable jobs={videoJobs} />
-              </CardContent>
-            </Card>
+            <VideoCard
+              key={video.id}
+              projectId={projectId}
+              video={video}
+              jobs={videoJobs}
+            />
           );
         })}
       </div>

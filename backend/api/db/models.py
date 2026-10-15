@@ -136,6 +136,7 @@ class Job(Base):
     source_video: Mapped[SourceVideo | None] = relationship(back_populates="jobs")
     dialogue_lines: Mapped[list["DialogueLine"]] = relationship(back_populates="job")
     vocabulary_items: Mapped[list["VocabularyItem"]] = relationship(back_populates="job")
+    quiz_items: Mapped[list["QuizItem"]] = relationship(back_populates="job")
 
 
 class DialogueLine(Base):
@@ -176,6 +177,21 @@ class VocabularyItem(Base):
     example_sentence: Mapped[str] = mapped_column(Text)
 
     job: Mapped[Job] = relationship(back_populates="vocabulary_items")
+
+
+class QuizItem(Base):
+    """Agent 7's review questions (worker/agents/educational_agent.py) —
+    previously generated but discarded before persistence; split from
+    VocabularyItem since a quiz question/answer pair has no term/meaning
+    shape to share with it."""
+
+    __tablename__ = "quiz_items"
+    id: Mapped[uuid.UUID] = _uuid_col()
+    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("jobs.id"))
+    question: Mapped[str] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text)
+
+    job: Mapped[Job] = relationship(back_populates="quiz_items")
 
 
 class CulturalSafetyRule(Base):
