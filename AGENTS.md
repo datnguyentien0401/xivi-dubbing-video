@@ -13,7 +13,7 @@ intelligence core.
 
 What makes this different from a typical dubbing tool:
 1. Keeping character voices consistent across an entire series (not a single generic narrator voice)
-2. Transcreation of songs/rhymes (not literal translation)
+2. Contextual kid-friendly localization and humor adaptation (not literal translation)
 3. Cultural safety moderation per target market + generating vocabulary learning material
 
 Full design docs: see `docs/architecture.md`, `docs/agent-pipeline.md`,

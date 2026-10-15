@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Executive Technical Architecture & Deployment Report — XIVI (ToonLingo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+
+  <style>
+    :root {
+      --bg-base: #0a0e17;
+      --bg-surface: #111827;
+      --bg-surface-elevated: #1a2333;
+      --bg-card: rgba(17, 24, 39, 0.8);
+      --border-subtle: #1f293d;
+      --border-accent: rgba(56, 189, 248, 0.35);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.15);
+      --secondary: #818cf8;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --code-bg: #0d121d;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+    }
+
+    [data-theme="light"] {
+      --bg-base: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-card: rgba(255, 255, 255, 0.95);
+      --border-subtle: #e2e8f0;
+      --border-accent: rgba(2, 132, 199, 0.35);
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --primary: #0284c7;
+      --primary-glow: rgba(2, 132, 199, 0.12);
+      --secondary: #6366f1;
+      --accent: #d97706;
+      --success: #059669;
+      --success-bg: rgba(5, 150, 105, 0.1);
+      --warning: #d97706;
+      --warning-bg: rgba(217, 119, 6, 0.1);
+      --code-bg: #f1f5f9;
+      --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 10px 20px -5px rgba(0, 0, 0, 0.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 15px; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      line-height: 1.65;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; }
+    code {
+      background-color: var(--code-bg);
+      color: var(--primary);
+      padding: 0.15em 0.4em;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    
+    /* Top Bar */
+    header.nav-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10, 14, 23, 0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    [data-theme="light"] header.nav-header { background: rgba(248, 250, 252, 0.9); }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between; height: 58px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.05rem;
+    }
+    .badge-pill {
+      font-size: 0.72rem; padding: 3px 8px; border-radius: var(--radius-full);
+      background: var(--primary-glow); color: var(--primary);
+      border: 1px solid var(--border-accent); font-family: 'JetBrains Mono', monospace; font-weight: 600;
+    }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+    .theme-btn {
+      background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      color: var(--text-main); width: 34px; height: 34px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 40px 0 28px;
+      border-bottom: 1px solid var(--border-subtle);
+      position: relative;
+    }
+    .hero-title {
+      font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, var(--text-main) 60%, var(--primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-subtitle {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 860px;
+      line-height: 1.6;
+      margin-bottom: 22px;
+    }
+    .links-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; font-size: 0.85rem; font-weight: 600; border-radius: var(--radius-sm);
+      text-decoration: none; cursor: pointer; transition: transform 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--primary); color: #000; font-weight: 700; }
+    .btn-outline { background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-subtle); }
+
+    /* KPI Highlights */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+    }
+    .kpi-val {
+      font-size: 1.5rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--primary);
+    }
+    .kpi-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Section Styles */
+    section.sec {
+      padding: 36px 0 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .sec-header {
+      display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;
+    }
+    .sec-tag {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700;
+      color: var(--primary); background: var(--primary-glow); padding: 1px 7px; border-radius: 4px;
+    }
+    h2.sec-title {
+      font-size: 1.45rem; font-weight: 800; color: var(--text-main);
+    }
+    h3.sub-title {
+      font-size: 1.1rem; font-weight: 700; margin: 22px 0 10px; color: var(--text-main);
+      display: flex; align-items: center; gap: 8px;
+    }
+    p { color: var(--text-muted); margin-bottom: 12px; line-height: 1.65; }
+    strong { color: var(--text-main); }
+
+    /* Cards Grid */
+    .grid-2 {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin: 16px 0;
+    }
+    .grid-3 {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 16px 0;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card:hover { border-color: var(--border-accent); }
+    .card-icon { font-size: 1.3rem; margin-bottom: 8px; }
+    .card h4 { font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
+    .card p { font-size: 0.88rem; color: var(--text-muted); margin: 0; line-height: 1.55; }
+
+    /* Callout */
+    .callout {
+      background: var(--bg-surface-elevated);
+      border-left: 4px solid var(--primary);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      margin: 16px 0 20px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .callout strong { color: var(--text-main); }
+
+    /* Tables */
+    .table-box {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow-x: auto;
+      margin: 14px 0 20px;
+    }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left;
+    }
+    th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    td {
+      padding: 11px 14px; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted);
+    }
+    tr:last-child td { border-bottom: none; }
+    td:first-child { font-weight: 600; color: var(--text-main); }
+
+    .tag-pill {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 700;
+      padding: 2px 7px; border-radius: var(--radius-full); display: inline-block;
+    }
+    .tag-ok { background: var(--success-bg); color: var(--success); }
+    .tag-warn { background: var(--warning-bg); color: var(--warning); }
+
+    /* Diagram Container */
+    .diagram-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      margin: 18px 0;
+      overflow-x: auto;
+    }
+    .diagram-caption {
+      font-size: 0.78rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-bottom: 12px;
+    }
+
+    footer {
+      padding: 32px 0 40px; font-size: 0.82rem; color: var(--text-dim);
+      border-top: 1px solid var(--border-subtle); margin-top: 40px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="nav-header">
+    <div class="container nav-inner">
+      <div class="brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--primary);"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+        <span>XIVI / ToonLingo</span>
+        <span class="badge-pill">EXECUTIVE SUMMARY</span>
+      </div>
+      <div class="nav-actions">
+        <button class="theme-btn" id="themeToggleBtn" title="Toggle Light / Dark Theme">
+          <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title">Executive Technical Architecture & Deployment Report</h1>
+      <p class="hero-subtitle">
+        An executive summary of <strong>XIVI (ToonLingo)</strong> — an autonomous agentic AI localization pipeline for children's animated video across JAPAC markets. Powered by <strong>Google Gemini</strong> as the single intelligence core, orchestrated on <strong>Google Cloud Run</strong>, <strong>Firebase Hosting</strong>, and <strong>Cloud Firestore</strong>.
+      </p>
+
+      <div class="links-row">
+        <a href="https://toonlingo-app.web.app" target="_blank" class="btn btn-primary">Live Web Application</a>
+        <a href="https://toonlingo-api-765982386020.asia-southeast1.run.app/docs" target="_blank" class="btn btn-outline">Interactive Swagger API</a>
+        <a href="deployment-report.html" class="btn btn-outline">Full Technical Report (1900+ lines)</a>
+      </div>
+
+      <!-- Quick KPI Numbers -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-val">2</div>
+          <div class="kpi-label">Decoupled Cloud Run Services</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">7</div>
+          <div class="kpi-label">Specialized Pipeline Agents</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">&lt; 75ms</div>
+          <div class="kpi-label">API p50 DB Read Latency</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">300+</div>
+          <div class="kpi-label">Savepoint-Isolated Automated Tests</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">100%</div>
+          <div class="kpi-label">Zero-Trust WIF (No Secret Leaks)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="container">
+
+    <!-- 01: Problem Statement & Solution Overview -->
+    <section class="sec">
+      <div class="sec-header">
+        <span class="sec-tag">01</span>
+        <h2 class="sec-title">Problem Statement & Solution Overview</h2>
+      </div>
+      <p>
+        Commercial off-the-shelf automated dubbing tools fail when applied to children's animation: they flatten expressive character personalities into a single generic narrator, produce clumsy literal machine translations that lack kid-friendly warmth, and ignore strict regional cultural taboos across JAPAC countries (Vietnam, Indonesia, Japan, etc.).
+      </p>
+      <p>
+        <strong>XIVI</strong> re-engineers localization into a <strong>Collaborative Multi-Agent Pipeline</strong> with <strong>Google Gemini</strong> as the central intelligence engine (no custom CV/NLP models are trained):
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">🎭</div>
+          <h4>Series-Wide Voice Consistency</h4>
+          <p>Every character receives a persistent <code>character_id</code> and acoustic profile stored in PostgreSQL, backed by Gemini 3.8 Flash Voice Design and native audio prebuilt voices so voices never drift across episodes.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🌏</div>
+          <h4>Contextual Kids Localization</h4>
+          <p>Dialogue avoids clumsy, literal machine translation. Specialized prompts instruct Gemini to adapt humor, child-friendly idioms, and natural conversational cadence appropriate for young audiences in target languages.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🛡️</div>
+          <h4>Dynamic Cultural Safety Guardrails</h4>
+          <p>Dialogue is screened against extensible database rules (<code>cultural_safety_rules</code> table) per target country; outputs severity scores (Safe, Low, Medium, High) with natural-language rationales for human reviewers.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📚</div>
+          <h4>Bilingual Learning & Quiz Generation</h4>
+          <p>Agent 7 asynchronously extracts 8–12 age-appropriate vocabulary flashcards and interactive multiple-choice quiz questions from the dubbed dialogue, transforming entertaining cartoons into learning materials.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🎬</div>
+          <h4>Canva-Style In-Browser Timeline Editor</h4>
+          <p>An integrated multi-track WaveSurfer.js waveform editor enables visual lip-sync adjustments, audio trimming, volume balancing, and server-side non-destructive FFmpeg remuxing.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h4>Script-First Parallel Workflow</h4>
+          <p>Allows translation and dubbing to begin immediately from locked scripts (CSV/text) using AI duration benchmarks, unlocking parallel localization weeks before final animated footage is rendered.</p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Mandatory Ethical Principle:</strong> No AI agent is permitted to auto-publish content destined for young audiences. Every episode must pass an explicit Human Review Gate in the studio dashboard before release.
+      </div>
+    </section>
+
+    <!-- 02: Leveraging Firebase, Cloud Firestore & Cloud Run -->
+    <section class="sec">
+      <div class="sec-header">
+        <span class="sec-tag">02</span>
+        <h2 class="sec-title">Leveraging Firebase, Cloud Firestore & Cloud Run</h2>
+      </div>
+      <p>
+        The platform embraces Google Cloud's <strong>Serverless Managed Services</strong> to maximize developer velocity, eliminate server maintenance, and ensure instant realtime responsiveness:
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h4>1. Firebase Hosting & Firebase Auth</h4>
+          <p>
+            • <strong>Global Edge CDN:</strong> Distributes the compiled React 18 SPA across Google's worldwide edge caches with single-page rewrite rules (<code>** -> /index.html</code>).<br>
+            • <strong>Secure Authentication:</strong> Verifies user identity via Firebase Auth JWT ID tokens validated server-side using <code>firebase_admin.auth.verify_id_token</code>.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🔥</div>
+          <h4>2. Cloud Firestore (Realtime State Streaming)</h4>
+          <p>
+            • <strong>Zero-WebSocket Streaming:</strong> The client dashboard uses Firestore's client-side <code>onSnapshot</code> listener to receive instant pipeline stage transitions and progress percentages (0%–100%).<br>
+            • <strong>Separation of Concerns:</strong> Firestore exclusively handles ephemeral execution progress. All transactional business data, permissions, and dialogue lines reside safely in PostgreSQL.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🚀</div>
+          <h4>3. Google Cloud Run (Decoupled Services)</h4>
+          <p>
+            • <strong>API Orchestrator (<code>toonlingo-api</code>):</strong> Scales rapidly from 0 to 10 instances (scale-to-zero), delivering sub-50ms HTTP responses and issuing signed upload URLs.<br>
+            • <strong>Worker Container (<code>toonlingo-worker</code>):</strong> Allocated <strong>2 vCPU, 2 GiB RAM</strong>, timeout of 3600s, and <code>concurrency=1</code> to guarantee CPU-intensive FFmpeg tasks never suffer OOM errors.
+          </p>
+        </div>
+      </div>
+
+      <!-- Architecture Diagram -->
+      <div class="diagram-box">
+        <div class="diagram-caption">Figure 1: Orchestrated Serverless Architecture — Firebase, Cloud Run, Pub/Sub, and Gemini</div>
+        <div class="mermaid">
+graph LR
+    User["Creator Browser<br/>(Firebase Hosting)"]
+    API["Cloud Run API<br/>(FastAPI Orchestrator)"]
+    GCS["Cloud Storage<br/>(V4 Signed URLs)"]
+    PubSub["Cloud Pub/Sub<br/>(Topic: agent-events)"]
+    Worker["Cloud Run Worker<br/>(Pipeline &amp; FFmpeg Engine)"]
+    Firestore[("Cloud Firestore<br/>(Realtime onSnapshot)")]
+    Postgres[("Cloud SQL Postgres<br/>(ACID Checkpointing)")]
+    Gemini["Google Gemini API<br/>(3.6 Flash / 3.1 TTS / 3.8 Voice)"]
+
+    User -->|"1. Request Signed URL &amp; Direct Upload"| GCS
+    User -->|"2. Initiate Job POST /jobs"| API
+    User -.->|"Realtime Progress Listener"| Firestore
+
+    API -->|"Record Initial Queued Job"| Postgres
+    API -->|"Set Initial Progress"| Firestore
+    API -->|"Publish {job_id}"| PubSub
+
+    PubSub -->|"Push with IAM OIDC Token"| Worker
+    Worker -->|"Read/Write Stage Checkpoints"| Postgres
+    Worker -->|"Push Live Stage &amp; Percentage"| Firestore
+    Worker -->|"Multimodal Inference &amp; TTS"| Gemini
+    Worker -->|"Stream Source &amp; Upload Dubbed Media"| GCS
+        </div>
+      </div>
+
+      <h3 class="sub-title">Fault-Tolerant Checkpoint & Resume Guarantee</h3>
+      <p>
+        To protect against container preemption or temporary network blips during multi-minute dubbing runs, the worker writes a <strong>transactional checkpoint</strong> to the <code>jobs.current_stage</code> column in PostgreSQL before each state transition:
+      </p>
+      <div class="callout">
+        <strong>Automatic Resume Guarantee:</strong> If a worker container restarts during step 5 (Dubbing), Pub/Sub redelivers the event. The worker reads <code>current_stage = "safety_checked"</code> and immediately resumes dubbing — skipping Ingestion, Voice Profiling, and Translation to eliminate duplicate Gemini API costs.
+      </div>
+    </section>
+
+    <!-- 03: 7-Agent Pipeline & Gemini Models -->
+    <section class="sec">
+      <div class="sec-header">
+        <span class="sec-tag">03</span>
+        <h2 class="sec-title">The 7-Stage Agent Pipeline & Google Gemini Integration</h2>
+      </div>
+      <p>
+        All model interactions are centralized inside the singleton service <code>backend/worker/services/gemini_client.py</code> to enforce rate limiting, exponential backoff, and Redis hash caching:
+      </p>
+
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>Agent / Stage</th>
+              <th>Primary Input</th>
+              <th>Output Artifact</th>
+              <th>Gemini Model Utilized</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1. Ingestion Agent</td>
+              <td>Audio stream stripped from source video</td>
+              <td>Dialogue transcript, sub-second timestamps, speaker diarization</td>
+              <td><code>gemini-3.6-flash</code> (Multimodal Audio)</td>
+            </tr>
+            <tr>
+              <td>2. Voice Profiling</td>
+              <td>Sample voice clips + character description</td>
+              <td>Assigned <code>character_id</code>, matched registry profile or newly synthesized voice</td>
+              <td><code>gemini-3.8-flash-tts</code> / Prebuilt Voices</td>
+            </tr>
+            <tr>
+              <td>3. Translation Agent</td>
+              <td>Dialogue lines + target language code</td>
+              <td>Contextual, age-appropriate localization preserving character humor and warmth</td>
+              <td><code>gemini-3.6-flash</code> (Contextual Mode)</td>
+            </tr>
+            <tr>
+              <td>4. Cultural Safety</td>
+              <td>Localized text + database rules per country</td>
+              <td>Safety status (safe/flagged), severity level, natural-language rationale</td>
+              <td><code>gemini-3.6-flash</code> (Reasoning Mode)</td>
+            </tr>
+            <tr>
+              <td>5. Dubbing Synthesis</td>
+              <td>Approved translated lines + character voice ID</td>
+              <td>Synthesized speech clips aligned to dialogue timestamp windows</td>
+              <td><code>gemini-3.1-flash-tts-preview</code> (Native Audio)</td>
+            </tr>
+            <tr>
+              <td>6. Muxing Engine</td>
+              <td>Dubbed audio clips + original video stream</td>
+              <td>Separates BGM, stitches dubbed speech, encodes faststart MP4</td>
+              <td><code>FFmpeg Engine</code> (C Service)</td>
+            </tr>
+            <tr>
+              <td>7. Educational Content</td>
+              <td>Full translated episode transcript</td>
+              <td>8–12 bilingual vocabulary flashcards and interactive multiple-choice quiz questions</td>
+              <td><code>gemini-3.6-flash</code> (Structured JSON Mode)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub-title">3-Tier Fallback Hierarchy for Character Voice Synthesis</h3>
+      <p>
+        Guarantees that voice assignment never breaks the pipeline execution:
+      </p>
+      <ul style="padding-left: 20px; color: var(--text-muted); line-height: 1.8;">
+        <li><strong>Tier 1 — Gemini 3.8 Voice Design:</strong> Synthesizes a bespoke voice from personality prompts using <code>client.voices.create(type="prompted")</code>. If Google's safety filter flags the generated voice (e.g. sounding like a minor), the system gracefully degrades to Tier 2.</li>
+        <li><strong>Tier 2 — Prebuilt Native Voices:</strong> Matches against Gemini's 12 prebuilt voices based on character gender, pitch, and energy attributes.</li>
+        <li><strong>Tier 3 — Deterministic Hash Fallback:</strong> Applies <code>hash(character_id) % 12</code>, guaranteeing that the same character consistently speaks with the exact same voice across all episodes.</li>
+      </ul>
+    </section>
+
+    <!-- 04: Two Workflow Breakthroughs -->
+    <section class="sec">
+      <div class="sec-header">
+        <span class="sec-tag">04</span>
+        <h2 class="sec-title">Two Workflow Breakthroughs: Timeline Editor & Script-First</h2>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h4>🎬 In-Browser Timeline Editor (Spec 002)</h4>
+          <p>
+            • <strong>Instant Feedback:</strong> Local Zustand state and WaveSurfer.js render audio waveforms directly in the browser for sub-100ms UI response.<br>
+            • <strong>Resilient Autosave:</strong> Automatically debounces user edits for 3 seconds before writing a single JSONB document to <code>jobs.timeline_edits</code> in PostgreSQL.<br>
+            • <strong>Non-Destructive Server Export:</strong> Clicking "Export Video" compiles an FFmpeg <code>filter_complex</code> script that renders adjusted volume gains, cuts, and offsets into a pristine MP4 file without altering original source media.
+          </p>
+        </div>
+        <div class="card">
+          <h4>⚡ Script-First Parallel Ingestion (Spec 003)</h4>
+          <p>
+            • <strong>Parallel Production:</strong> Animation studios no longer wait for final video renders; locked scripts (CSV/text) can be translated and dubbed weeks ahead.<br>
+            • <strong>AI Duration Benchmarking:</strong> The <code>ScriptBenchmarkAgent</code> generates reference audio to calculate natural dialogue timing boundaries.<br>
+            • <strong>Late Video Attachment:</strong> Once final animation cuts are delivered, calling <code>POST /jobs/{id}/attach-video</code> maps pre-dubbed audio directly to the video, skipping redundant Gemini processing.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05: Security, CI/CD & Benchmarks -->
+    <section class="sec">
+      <div class="sec-header">
+        <span class="sec-tag">05</span>
+        <h2 class="sec-title">Zero-Trust Security, CI/CD & Performance Benchmarks</h2>
+      </div>
+
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>Domain</th>
+              <th>Production Architecture & Implementation</th>
+              <th>Measured Outcome / Security Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CI/CD Authentication</td>
+              <td>GitHub Actions via Workload Identity Federation (WIF) OIDC</td>
+              <td><span class="tag-pill tag-ok">100% Zero-Trust</span> — Zero static service account JSON keys stored in repository secrets.</td>
+            </tr>
+            <tr>
+              <td>Database Migrations</td>
+              <td>Dedicated Cloud Run Job (<code>toonlingo-migrate</code>) running <code>alembic upgrade head</code></td>
+              <td>Schema migrations complete deterministically before service revisions receive incoming traffic.</td>
+            </tr>
+            <tr>
+              <td>Large Video Ingestion</td>
+              <td>GCS V4 Resumable Signed Upload URLs (15-minute expiration)</td>
+              <td>Client uploads direct to Cloud Storage, completely bypassing API memory and network bottlenecks.</td>
+            </tr>
+            <tr>
+              <td>Worker Authorization</td>
+              <td>Google IAM OIDC Identity Token attached to Pub/Sub Push Subscriptions</td>
+              <td>Private worker endpoints only accept requests verified against <code>PUBSUB_PUSH_AUDIENCE</code>.</td>
+            </tr>
+            <tr>
+              <td>Automated Testing</td>
+              <td>SQLAlchemy Savepoint Transactions in <code>conftest.py</code></td>
+              <td>300+ unit and integration tests run concurrently with total database rollback isolation.</td>
+            </tr>
+            <tr>
+              <td>API Read Latency</td>
+              <td>Asynchronous load test harness (<code>backend/scripts/load_test_api.py</code>)</td>
+              <td><code>GET /projects</code> achieves p50 = 24ms (44.2 req/s) and 72ms at 50 concurrency (443.6 req/s). 0% error rate.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Page Footer -->
+  <footer class="container">
+    <div>
+      <strong>XIVI (ToonLingo)</strong> — Executive Technical Architecture & Deployment Report.
+    </div>
+    <div>
+      <span>Version: 2.2 (English Executive Summary) · Full reference: <code>docs/deployment-report.html</code></span>
+    </div>
+  </footer>
+
+  <!-- Theme Toggle & Mermaid Initializer -->
+  <script>
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const htmlElement = document.documentElement;
+    const themeIcon = document.getElementById('themeIcon');
+
+    function applyTheme(theme) {
+      htmlElement.setAttribute('data-theme', theme);
+      localStorage.setItem('xivi_theme', theme);
+      if (theme === 'dark') {
+        themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+      } else {
+        themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+      }
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'loose'
+      });
+      mermaid.run();
+    }
+
+    const currentTheme = localStorage.getItem('xivi_theme') || 'dark';
+    applyTheme(currentTheme);
+
+    themeToggleBtn.addEventListener('click', () => {
+      const target = htmlElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(target);
+    });
+  </script>
+</body>
+</html>

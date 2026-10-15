@@ -12,7 +12,7 @@ flowchart TD
 
     A[Agent 1: Ingestion &<br/>Transcription] -->|transcript with timestamps<br/>+ speaker diarization| B
     B[Agent 2: Character Voice<br/>Profiling] -->|character_id assigned to<br/>each dialogue segment| C
-    C[Agent 3: Translation &<br/>Transcreation] -->|regular dialogue: translation<br/>songs: transcreation preserving rhyme| D
+    C[Agent 3: Translation &<br/>Transcreation] -->|regular dialogue: translation| D
 
     D{Agent 4: Cultural<br/>Safety Checker}
     D -->|Safe| E
@@ -127,19 +127,14 @@ earlier stage) — it does not re-run translation/safety/dubbing.
 - **This is the core differentiator versus a typical dubbing tool** (which has
   no concept of a "character", just a generic voice-over translation)
 
-### Agent 3 — Translation & Transcreation Agent
-- **Input**: `dialogue_lines[]`, the target language, `content_type` (regular
-  dialogue / song)
+### Agent 3 — Translation & Localization Agent
+- **Input**: `dialogue_lines[]`, the target language
 - **Processing**:
-  - For regular dialogue: translates while keeping a tone appropriate for
-    children (Gemini text model)
-  - For songs/rhyming content (marked manually or auto-detected via a repeating
-    pattern): uses a **dedicated transcreation prompt** — asks Gemini to
-    preserve syllable count/rhyme instead of translating literally, accepting
-    word substitutions as long as the rhythm is preserved
+  - Translates dialogue while keeping a tone, humor, and conversational cadence
+    appropriate for children in the target market (Gemini text model)
+  - Adapts cultural idioms and child-friendly expressions contextually rather
+    than translating literally
 - **Output**: `translated_text` for each line, for each target language
-- **This is a harder problem than adult dubbing** — the reason for choosing
-  this niche
 
 ### Agent 4 — Cultural Safety Checker Agent
 - **Input**: `translated_text`, the target language/market, `cultural_safety_rules`
@@ -157,10 +152,9 @@ earlier stage) — it does not re-run translation/safety/dubbing.
 - **Input**: the approved `translated_text`, `character_id` (to fetch the right
   voice profile), the original `start_time`/`end_time` (to fit the timing)
 - **Processing**: calls **Gemini Native Audio** to generate audio that keeps
-  intonation/emotion close to the original; for songs, checks whether the
-  generated audio's length matches the original music's rhythm — if it's off
-  beyond a threshold, requests Gemini to regenerate it with a speaking-rate
-  constraint
+  intonation/emotion close to the original; automatically time-stretches or
+  requests regeneration with rate constraints if the generated audio drifts
+  beyond the original timestamp boundary
 - **Output**: an audio clip (GCS URI) for each dialogue line
 
 ### Audio-Video Mux Service (not an AI agent)
@@ -194,7 +188,7 @@ earlier stage) — it does not re-run translation/safety/dubbing.
 | 1. Ingestion & Transcription | video (audio track) | dialogue_lines + timestamps | Gemini multimodal (audio understanding) |
 | 1 (script-first variant). Timing Benchmark | dialogue_lines (text only, no video) | dialogue_lines + real timestamps | Gemini Native Audio (TTS, discarded) |
 | 2. Voice Profiling | dialogue_lines + sample audio | character_id mapping | Gemini multimodal (audio) |
-| 3. Translation & Transcreation | dialogue_lines + target_lang | translated_text | Gemini text (2 prompt modes: translation / transcreation) |
+| 3. Translation & Localization | dialogue_lines + target_lang | translated_text | Gemini text (contextual translation) |
 | 4. Cultural Safety | translated_text + safety_rules | safety_status + reasoning | Gemini text (reasoning) |
 | 5. Dubbing/TTS | translated_text (approved) + character voice | audio clip | Gemini Native Audio |
 | 7. Educational Content | translated_text (whole episode) | vocabulary + quiz | Gemini text |

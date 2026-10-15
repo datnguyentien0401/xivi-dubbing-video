@@ -80,7 +80,7 @@ sequenceDiagram
     Worker->>FS: status = "transcribing"
     Worker->>Gemini: Extract dialogue + distinguish characters
     Worker->>FS: status = "translating"
-    Worker->>Gemini: Translate + transcreate songs
+    Worker->>Gemini: Translate + localize dialogue
     Worker->>FS: status = "safety_check"
     Worker->>Gemini: Cultural safety review for the target market
     Worker->>FS: status = "dubbing"

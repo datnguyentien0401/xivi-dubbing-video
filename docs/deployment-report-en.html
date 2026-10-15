@@ -259,9 +259,9 @@
         <p>Every character gets a <code>character_id</code> and its own voice profile, cross-referenced against earlier episodes so the voice never drifts mid-series — instead of one generic narrator voice.</p>
       </div>
       <div class="card">
-        <span class="k">Transcreation</span>
-        <h4>Songs &amp; rhymes</h4>
-        <p>Lyrics are never translated literally — a dedicated prompt asks Gemini to preserve syllable count and rhyme, trading words as long as the rhythm survives. Harder than regular adult dubbing.</p>
+        <span class="k">Localization</span>
+        <h4>Kid-Friendly Adaptation</h4>
+        <p>Dialogue is contextually localized rather than translated literally — prompts instruct Gemini to adapt humor, child-friendly phrasing, and conversational warmth suitable for young viewers in target markets.</p>
       </div>
       <div class="card">
         <span class="k">Safety &amp; education</span>
@@ -335,8 +335,8 @@ graph TB
       </div>
       <div class="step">
         <div class="marker">3</div>
-        <div class="content"><h4>Translation &amp; Transcreation<span class="tag">Gemini text — 2 prompt modes</span></h4>
-        <p>Regular dialogue is translated in a tone appropriate for children; songs/rhymes use a dedicated transcreation prompt that preserves rhythm/rhyme instead of translating literally.</p></div>
+        <div class="content"><h4>Translation &amp; Localization<span class="tag">Gemini text</span></h4>
+        <p>Dialogue is translated in an age-appropriate tone for children, preserving character personality, humor, and natural conversational cadence tailored for young audiences.</p></div>
       </div>
       <div class="step">
         <div class="marker">4</div>
@@ -346,7 +346,7 @@ graph TB
       <div class="step">
         <div class="marker">5</div>
         <div class="content"><h4>Dubbing / TTS<span class="tag">Gemini Native Audio</span></h4>
-        <p>Generates audio that keeps intonation/emotion close to the original, per the character's voice profile; for songs, checks whether the clip's length matches the music's rhythm and requests a regeneration if it drifts past a threshold.</p></div>
+        <p>Generates audio that keeps intonation/emotion close to the original, per the character's voice profile, automatically time-stretching or adjusting pitch to align with dialogue window boundaries.</p></div>
       </div>
       <div class="step">
         <div class="marker">6</div>
@@ -407,8 +407,8 @@ sequenceDiagram
     PS->>Worker: Push message (OIDC token)
     Worker->>FS: status = "transcribing"
     Worker->>Gemini: Extract dialogue + diarize speakers
-    Worker->>FS: status = "translating"
-    Worker->>Gemini: Translate + transcreate songs
+    Worker->>FS: Update status = "translating"
+    Worker->>Gemini: Translate + localize dialogue
     Worker->>FS: status = "safety_check"
     Worker->>Gemini: Cultural safety review for the target market
     Worker->>FS: status = "dubbing"
@@ -435,7 +435,7 @@ sequenceDiagram
       <table>
         <thead><tr><th>Variable</th><th>Model</th><th>Used for</th></tr></thead>
         <tbody>
-          <tr><td>_TEXT_MODEL</td><td><code>gemini-3.6-flash</code></td><td>Translation, transcreation, cultural safety, educational content</td></tr>
+          <tr><td>_TEXT_MODEL</td><td><code>gemini-3.6-flash</code></td><td>Translation, localization, cultural safety, educational content</td></tr>
           <tr><td>_AUDIO_MODEL</td><td><code>gemini-3.1-flash-tts-preview</code></td><td>Dubbed audio generation per dialogue line (high-frequency TTS)</td></tr>
         </tbody>
       </table>
@@ -443,7 +443,7 @@ sequenceDiagram
     <p>Models were chosen by calling the real REST API <code>GET /v1beta/models</code> directly to see which models are genuinely still available, then testing <code>generateContent</code> for real against several candidates — the SDK version pinned in <code>requirements.txt</code> returns 501 for <code>models.list()</code>, so it can't be trusted. The current choices avoid models Google has retired (404) or that carry a TTS quota too low to raise even with billing enabled (100 requests/day).</p>
 
     <h3>Cache + retry</h3>
-    <p>Translation results are cached in Redis under <code>translate:{hash(text)}:{lang}:{is_song}</code>, TTL 24h — avoiding repeat Gemini calls when the worker retries after a network error, or when multiple episodes share the same line of dialogue (e.g. a recurring opening greeting). Model calls are wrapped in <code>_call_with_retry</code>, exponential backoff, capped at 3 attempts.</p>
+    <p>Translation results are cached in Redis under <code>translate:{hash(text)}:{lang}</code>, TTL 24h — avoiding repeat Gemini calls when the worker retries after a network error, or when multiple episodes share the same line of dialogue (e.g. a recurring opening greeting). Model calls are wrapped in <code>_call_with_retry</code>, exponential backoff, capped at 3 attempts.</p>
 
     <h3>Choosing a character's TTS voice — 3 fallback tiers</h3>
     <p><code>build_voice_profile_metadata</code> (shared by both the automatic flow and the flow where a user manually uploads a voice sample in the Character Voice Manager):</p>
