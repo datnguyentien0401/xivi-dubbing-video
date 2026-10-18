@@ -18,10 +18,19 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r bg-card">
       <div className="border-b px-4 py-4">
-        <span className="font-display text-lg font-semibold text-primary">
-          XIVI
-        </span>
-        <span className="ml-1 text-xs text-muted-foreground">Studio</span>
+        <Link
+          to="/"
+          className="flex items-center gap-2 transition-opacity hover:opacity-85"
+          title="Return to Home"
+        >
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[hsl(263_75%_59%)] font-display text-sm font-bold text-primary-foreground">
+            X
+          </span>
+          <span className="font-display text-lg font-semibold text-foreground">
+            XIVI
+          </span>
+          <span className="text-xs text-muted-foreground">Studio</span>
+        </Link>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">

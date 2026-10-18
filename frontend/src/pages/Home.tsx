@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Globe2,
   Languages,
+  LogOut,
   Mic2,
   ShieldCheck,
   Sparkles,
@@ -20,6 +21,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
+import { TARGET_LANGUAGE_GROUPS } from "@/lib/targetLanguages";
 
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
@@ -38,9 +41,9 @@ const FEATURES = [
   },
   {
     icon: Sparkles,
-    title: "Transcreation, not translation",
+    title: "Contextual kids localization",
     description:
-      "Songs and rhymes are re-written to keep rhythm and meaning in the target language, not translated word-for-word.",
+      "Dialogue is adapted with kid-friendly warmth, humor, and natural cultural phrasing for young audiences in target markets.",
     card: "bg-[hsl(201_75%_97%)] border-[hsl(201_50%_88%)]",
     iconBox: "bg-[hsl(201_70%_90%)] text-[hsl(201_70%_36%)]",
   },
@@ -93,9 +96,9 @@ const HOW_IT_WORKS = [
   },
   {
     icon: Languages,
-    title: "Translate & transcreate",
+    title: "Translate & localize",
     description:
-      "Dialogue is translated; songs and rhymes go through a dedicated transcreation pass that preserves rhythm instead of literal meaning.",
+      "Dialogue is translated in a kid-appropriate tone with natural conversational cadence, adapting humor and idioms.",
   },
   {
     icon: ShieldCheck,
@@ -117,25 +120,19 @@ const HOW_IT_WORKS = [
   },
 ];
 
-const LANGUAGES = [
-  "Vietnamese",
-  "Indonesian",
-  "Thai",
-  "Tagalog",
-  "Japanese",
-  "Korean",
-];
-
 function Logo({ className = "" }: { className?: string }) {
   return (
-    <span className={`flex items-center gap-2 ${className}`}>
+    <Link
+      to="/"
+      className={`flex items-center gap-2 transition-opacity hover:opacity-90 ${className}`}
+    >
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[hsl(263_75%_59%)] font-display text-base font-bold text-primary-foreground">
         X
       </span>
       <span className="font-display text-lg font-semibold text-foreground">
         XIVI Studio
       </span>
-    </span>
+    </Link>
   );
 }
 
@@ -143,6 +140,12 @@ function Logo({ className = "" }: { className?: string }) {
  * App.tsx). Introduces the product and funnels visitors toward /login;
  * everything else in the app lives behind ProtectedRoute. */
 export default function Home() {
+  const { user, signOutUser } = useAuth();
+  const totalLanguages = TARGET_LANGUAGE_GROUPS.reduce(
+    (acc, group) => acc + group.languages.length,
+    0,
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 border-b bg-white">
@@ -161,12 +164,30 @@ export default function Home() {
               ))}
             </nav>
             <div className="flex items-center gap-2">
-              <Button asChild variant="ghost">
-                <Link to="/login">Sign in</Link>
-              </Button>
-              <Button asChild className="hidden sm:inline-flex">
-                <Link to="/studio">Dashboard</Link>
-              </Button>
+              {user ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    onClick={() => signOutUser()}
+                    className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <LogOut size={16} />
+                    Sign out
+                  </Button>
+                  <Button asChild>
+                    <Link to="/studio">Dashboard</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild variant="ghost">
+                    <Link to="/login">Sign in</Link>
+                  </Button>
+                  <Button asChild className="hidden sm:inline-flex">
+                    <Link to="/studio">Dashboard</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -193,30 +214,25 @@ export default function Home() {
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
               XIVI Studio is an agentic translation and dubbing pipeline, built
               for series that need to keep every character sounding like
-              themselves — in every language.
+              themselves — across {totalLanguages}+ languages in JAPAC and beyond.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Button asChild size="lg">
-                <Link to="/login">Get started</Link>
+                <Link to={user ? "/studio" : "/login"}>
+                  {user ? "Go to Dashboard" : "Get started"}
+                </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <a href="#how-it-works">See how it works</a>
+                <a href="#languages">Explore {totalLanguages} Languages</a>
               </Button>
             </div>
-            <div
-              id="languages"
-              className="mt-8 flex flex-wrap items-center justify-center gap-2 text-sm text-muted-foreground"
-            >
-              <Globe2 size={16} className="shrink-0" />
-              <span>Built for JAPAC languages, including</span>
-              {LANGUAGES.map((lang) => (
-                <span
-                  key={lang}
-                  className="rounded-full border bg-card px-2.5 py-0.5 text-foreground shadow-sm"
-                >
-                  {lang}
-                </span>
-              ))}
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Globe2 size={16} className="shrink-0 text-primary" />
+              <span>Full JAPAC & Global coverage:</span>
+              <span className="font-semibold text-foreground">{totalLanguages}+ languages</span>
+              <span className="hidden sm:inline text-muted-foreground">•</span>
+              <span className="hidden sm:inline">English, Japanese, Hindi, Vietnamese, Thai, Korean, Indonesian & more</span>
             </div>
           </div>
         </section>
@@ -290,6 +306,66 @@ export default function Home() {
           </div>
         </section>
 
+        <section
+          id="languages"
+          className="scroll-mt-20 border-b bg-card/30 px-6 py-16 sm:py-20"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="mx-auto max-w-2xl text-center">
+              <Badge
+                variant="secondary"
+                className="mb-3 gap-1.5 bg-accent px-3 py-1 text-accent-foreground"
+              >
+                <Globe2 size={14} />
+                Extensive Regional Coverage
+              </Badge>
+              <h2 className="font-display text-3xl font-semibold">
+                Supported JAPAC & Global Languages
+              </h2>
+              <p className="mt-3 text-muted-foreground">
+                Tailored localization with native Gemini TTS audio and market-specific
+                cultural safety guardrails across all major Asian-Pacific and Global regions.
+              </p>
+            </div>
+
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {TARGET_LANGUAGE_GROUPS.map((group) => (
+                <div
+                  key={group.region}
+                  className="rounded-2xl border bg-card p-5 shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+                >
+                  <div className="mb-3.5 flex items-center justify-between border-b pb-3">
+                    <h3 className="font-display text-base font-semibold text-foreground">
+                      {group.region}
+                    </h3>
+                    <Badge variant="outline" className="text-xs">
+                      {group.languages.length}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {group.languages.map((lang) => (
+                      <div
+                        key={lang.code}
+                        className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition-colors hover:bg-accent/40"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-base">{lang.flag}</span>
+                          <span className="font-medium text-foreground">
+                            {lang.label}
+                          </span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {lang.englishLabel}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="px-6 py-14 sm:py-20">
           <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 rounded-2xl bg-primary px-6 py-14 text-center text-primary-foreground sm:py-16">
             <h2 className="font-display text-3xl font-semibold">
@@ -297,11 +373,13 @@ export default function Home() {
             </h2>
             <p className="max-w-xl text-primary-foreground/80">
               Sign in with Google and bring your first episode through the
-              pipeline — translation, transcreation, dubbing, and a review
+              pipeline — translation, cultural safety, dubbing, and a review
               step built in.
             </p>
             <Button asChild size="lg" variant="secondary">
-              <Link to="/login">Get started for free</Link>
+              <Link to={user ? "/studio" : "/login"}>
+                {user ? "Go to Dashboard" : "Get started for free"}
+              </Link>
             </Button>
           </div>
         </section>
