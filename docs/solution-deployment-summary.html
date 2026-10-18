@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Executive Technical Summary — XIVI Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+
+  <style>
+    :root {
+      --bg-base: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --border-subtle: #e2e8f0;
+      --border-accent: rgba(2, 132, 199, 0.35);
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --primary: #0284c7;
+      --primary-glow: rgba(2, 132, 199, 0.1);
+      --success: #059669;
+      --code-bg: #f1f5f9;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 15px; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      line-height: 1.6;
+    }
+
+    code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; }
+    code {
+      background-color: var(--code-bg);
+      color: var(--primary);
+      padding: 0.15em 0.4em;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .container { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+    
+    /* Header */
+    header.nav-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between; height: 56px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1rem; color: var(--text-main);
+    }
+    .badge-pill {
+      font-size: 0.72rem; padding: 2px 8px; border-radius: 9999px;
+      background: var(--primary-glow); color: var(--primary);
+      border: 1px solid var(--border-accent); font-family: 'JetBrains Mono', monospace; font-weight: 600;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 36px 0 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .hero-title {
+      font-size: clamp(1.7rem, 3vw, 2.2rem);
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 10px;
+      color: var(--text-main);
+    }
+    .hero-subtitle {
+      font-size: 1rem; color: var(--text-muted); max-width: 860px; line-height: 1.6; margin-bottom: 20px;
+    }
+    .links-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; font-size: 0.85rem; font-weight: 600; border-radius: 8px;
+      text-decoration: none; cursor: pointer;
+    }
+    .btn-primary { background: var(--primary); color: #fff; font-weight: 700; }
+    .btn-outline { background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-subtle); }
+
+    /* Sections */
+    section.sec { padding: 32px 0 16px; border-bottom: 1px solid var(--border-subtle); }
+    .sec-tag {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700;
+      color: var(--primary); background: var(--primary-glow); padding: 2px 7px; border-radius: 4px;
+      display: inline-block; margin-bottom: 8px;
+    }
+    h2.sec-title { font-size: 1.35rem; font-weight: 800; color: var(--text-main); margin-bottom: 10px; }
+    p { color: var(--text-muted); margin-bottom: 12px; }
+    strong { color: var(--text-main); }
+
+    /* Grid */
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; margin: 16px 0; }
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card:hover { border-color: var(--border-accent); box-shadow: var(--shadow-md); }
+    .card-header-flex { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .card-icon { font-size: 1.25rem; }
+    .card h3 { font-size: 0.98rem; font-weight: 700; color: var(--text-main); }
+    .card p { font-size: 0.87rem; color: var(--text-muted); margin: 0; line-height: 1.55; }
+
+    /* Diagram */
+    .diagram-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+      overflow-x: auto;
+      box-shadow: var(--shadow-sm);
+    }
+
+    footer {
+      padding: 24px 0 36px; font-size: 0.82rem; color: var(--text-muted);
+      border-top: 1px solid var(--border-subtle); margin-top: 36px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="nav-header">
+    <div class="container nav-inner">
+      <div class="brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--primary);"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+        <span>XIVI Studio</span>
+        <span class="badge-pill">ARCHITECTURE SUMMARY</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title">Executive Solution & Infrastructure Summary</h1>
+      <p class="hero-subtitle">
+        A focused architectural overview of <strong>XIVI Studio</strong> — an agentic localization pipeline for kids' animation across JAPAC languages, using <strong>Google Gemini</strong> as the core intelligence engine, orchestrated via <strong>Firebase</strong>, <strong>Firestore</strong>, <strong>Cloud Run</strong>, <strong>Pub/Sub</strong>, and <strong>Redis</strong>.
+      </p>
+      <div class="links-row">
+        <a href="https://xivi-studio.web.app" target="_blank" class="btn btn-primary">Live Web App</a>
+        <a href="https://toonlingo-api-765982386020.asia-southeast1.run.app/docs" target="_blank" class="btn btn-outline">API Swagger Docs</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="container">
+
+    <!-- 01: Solution Overview -->
+    <section class="sec">
+      <span class="sec-tag">01. SOLUTION</span>
+      <h2 class="sec-title">Problem Statement & Autonomous Agentic Solution</h2>
+      <p>
+        Standard AI dubbing tools fail when applied to children's animation: they flatten expressive characters into a single generic narrator, produce literal translations that lack kid-friendly warmth, and ignore strict regional cultural taboos across JAPAC markets.
+      </p>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">🎭</span>
+            <h3>Series-Wide Voice Consistency</h3>
+          </div>
+          <p>Each character is assigned a persistent <code>character_id</code> in PostgreSQL. Timbre and pitch are preserved using Gemini 3.8 Flash Voice Design and native audio prebuilt voices so character voices never drift across episodes.</p>
+        </div>
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">🌏</span>
+            <h3>Contextual Kids Localization & Safety</h3>
+          </div>
+          <p>Dialogue is translated with age-appropriate humor and warmth, then screened against extensible cultural safety rules in PostgreSQL with natural-language rationales. No agent is permitted to auto-publish without human review.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02: End-to-End Orchestration Architecture Flow -->
+    <section class="sec">
+      <span class="sec-tag">02. ARCHITECTURE FLOW</span>
+      <h2 class="sec-title">End-to-End Orchestrated Event Flow</h2>
+      <div class="diagram-box">
+        <div class="mermaid">
+graph LR
+    User["Creator Web App<br/>(Firebase Hosting)"]
+    API["FastAPI Orchestrator<br/>(Cloud Run: api)"]
+    PubSub["Cloud Pub/Sub<br/>(Topic: agent-events)"]
+    Worker["Pipeline &amp; FFmpeg<br/>(Cloud Run: worker)"]
+    Firestore[("Cloud Firestore<br/>(Realtime onSnapshot)")]
+    Redis[("Redis<br/>(Cache &amp; Locks)")]
+    Postgres[("Cloud SQL Postgres<br/>(State &amp; Checkpoints)")]
+    Gemini["Google Gemini API<br/>(3.6 Flash / 3.1 TTS / 3.8 Voice)"]
+
+    User -->|"1. V4 Direct Upload"| GCS["Cloud Storage"]
+    User -->|"2. POST /jobs"| API
+    User -.->|"Realtime stage listener"| Firestore
+
+    API -->|"Enqueue job"| PubSub
+    API -->|"Initial queued state"| Postgres
+    API -->|"Init progress 0%"| Firestore
+
+    PubSub -->|"Push (IAM OIDC)"| Worker
+    Worker -->|"Dist. Lock &amp; Cache"| Redis
+    Worker -->|"Multimodal / TTS"| Gemini
+    Worker -->|"Save Stage Checkpoints"| Postgres
+    Worker -->|"Stream Progress 0-100%"| Firestore
+        </div>
+      </div>
+    </section>
+
+    <!-- 03: Deployment & Infrastructure Implementation -->
+    <section class="sec">
+      <span class="sec-tag">03. INFRASTRUCTURE DEEP-DIVE</span>
+      <h2 class="sec-title">Leveraging Firebase, Firestore, Cloud Run, Pub/Sub, Redis & Gemini</h2>
+
+      <div class="grid-2">
+        <!-- Firebase -->
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">🌐</span>
+            <h3>1. Firebase Hosting & Firebase Auth</h3>
+          </div>
+          <p>
+            • <strong>Global Edge CDN:</strong> Distributes the compiled React 18 SPA bundle across Google's worldwide POPs with single-page rewrite rules (<code>** -> /index.html</code>) for instantaneous load times.<br>
+            • <strong>Token-Based Auth:</strong> Authenticates creators via Google OAuth and issues JWT ID tokens verified server-side on every API request via <code>firebase_admin.auth.verify_id_token</code>.
+          </p>
+        </div>
+
+        <!-- Firestore -->
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">🔥</span>
+            <h3>2. Cloud Firestore (Realtime State Streaming)</h3>
+          </div>
+          <p>
+            • <strong>Zero-WebSocket Streaming:</strong> The client dashboard uses Firestore's client-side <code>onSnapshot</code> listener to receive live pipeline stage transitions and progress percentages (0% to 100%) without maintaining WebSocket server clusters.<br>
+            • <strong>Separation of Concerns:</strong> Firestore exclusively stores ephemeral runtime progress. Core transactional data, permissions, and dialogue lines reside safely in PostgreSQL.
+          </p>
+        </div>
+
+        <!-- Cloud Run -->
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">🚀</span>
+            <h3>3. Google Cloud Run (Decoupled Microservices)</h3>
+          </div>
+          <p>
+            • <strong>API Service (<code>api</code>):</strong> Lightweight, fast-scaling (0–10 instances) HTTP gateway handling CRUD, signed upload URLs, and job triggering with sub-50ms latency.<br>
+            • <strong>Worker Service (<code>worker</code>):</strong> Allocated <strong>2 vCPU, 2 GiB RAM</strong>, 3600s timeout, and <code>concurrency=1</code> to guarantee CPU-intensive FFmpeg audio/video remuxing runs in complete isolation.<br>
+            • <strong>Cloud Run Jobs:</strong> Runs short-lived <code>alembic upgrade head</code> migrations deterministically before new service revisions accept traffic.
+          </p>
+        </div>
+
+        <!-- Pub/Sub / Message Broker -->
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">📨</span>
+            <h3>4. Cloud Pub/Sub (Event Streaming & Decoupling)</h3>
+          </div>
+          <p>
+            • <strong>Asynchronous Decoupling:</strong> The API publishes events (<code>{"type": "job", "job_id": "..."}</code>) and immediately returns <code>202 Accepted</code>, freeing HTTP threads from blocking on long tasks.<br>
+            • <strong>Secured Push Subscriptions:</strong> Cloud Pub/Sub delivers messages to private worker endpoints using Google IAM OIDC Identity Tokens, verified against <code>PUBSUB_PUSH_AUDIENCE</code>.
+          </p>
+        </div>
+
+        <!-- Redis -->
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">⚡</span>
+            <h3>5. Redis (Distributed Locking & Gemini Cache)</h3>
+          </div>
+          <p>
+            • <strong>Distributed Locks:</strong> Manages <code>pubsub_lock:{job_id}</code> (TTL 1800s) to prevent duplicate execution during Pub/Sub redeliveries or concurrent race conditions.<br>
+            • <strong>Gemini Result Caching:</strong> Caches translation responses under <code>translate:{hash}:{lang}</code> with a 24-hour TTL, saving substantial API quota and reducing latency on repeated phrases.
+          </p>
+        </div>
+
+        <!-- Gemini AI Core -->
+        <div class="card">
+          <div class="card-header-flex">
+            <span class="card-icon">🧠</span>
+            <h3>6. Google Gemini AI Core (Multi-Model Pipeline)</h3>
+          </div>
+          <p>
+            • <strong><code>gemini-3.6-flash</code>:</strong> Powers transcription diarization, contextual translation, cultural safety assessment with reasoning, and bilingual vocabulary/quiz generation.<br>
+            • <strong><code>gemini-3.1-flash-tts-preview</code>:</strong> Synthesizes expressive native audio speech matching original dialogue timing.<br>
+            • <strong><code>gemini-3.8-flash-tts</code>:</strong> Designs bespoke character voices directly from personality descriptions.<br>
+            • <strong>3-Tier Fallback:</strong> Voice Design ➔ 12 Prebuilt Native Voices ➔ Deterministic Hash Fallback ensures zero dubbing pipeline failures.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="container">
+    <div>
+      <strong>XIVI Studio</strong> — Executive Technical Architecture & Deployment Summary.
+    </div>
+    <div>
+      <span>Production Architecture & Solution Design</span>
+    </div>
+  </footer>
+
+  <!-- Mermaid Initializer (Light Theme) -->
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      securityLevel: 'loose'
+    });
+  </script>
+</body>
+</html>
