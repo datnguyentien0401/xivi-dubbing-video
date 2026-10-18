@@ -272,10 +272,18 @@ def _encode_video_track(source_video_path: str, srt_path: str, output_video_path
     """Pass 2/3: processes video only — burns in the translated subtitles
     (replacing the original ones if any), re-encodes (stream-copy is no
     longer possible since a filter is applied directly to the frames).
-    Does NOT touch audio at this step (`-an`)."""
+    Does NOT touch audio at this step (`-an`). Uses preset='veryfast' to
+    speed up video encoding 5-10x while maintaining crisp cartoon visuals."""
     video_stream = ffmpeg.input(source_video_path).video.filter("subtitles", srt_path)
     (
-        ffmpeg.output(video_stream, output_video_path, vcodec="libx264", an=None)
+        ffmpeg.output(
+            video_stream,
+            output_video_path,
+            vcodec="libx264",
+            preset="veryfast",
+            crf=23,
+            an=None,
+        )
         .overwrite_output()
         .run(quiet=True)
     )

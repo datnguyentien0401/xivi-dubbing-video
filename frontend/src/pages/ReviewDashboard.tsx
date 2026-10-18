@@ -19,6 +19,7 @@ import { ShareVideoPanel } from "@/components/ShareVideoPanel";
 import {
   useApproveJob,
   useAttachVideo,
+  useBatchUpdateDialogueLines,
   useDialogueLines,
   useDownloadDubbedAudioBundle,
   useJob,
@@ -110,30 +111,37 @@ function CharacterVoiceSelect({
 
 function EditableTranslation({
   line,
+  value,
+  onChange,
   onSave,
   disabled,
 }: {
   line: DialogueLine;
+  value: string;
+  onChange: (text: string) => void;
   onSave: (text: string) => void;
   disabled: boolean;
 }) {
-  const [draft, setDraft] = useState(line.translated_text ?? "");
-  const isDirty = draft !== (line.translated_text ?? "");
+  const isDirty = value !== (line.translated_text ?? "");
 
   return (
     <div className="flex items-center gap-2">
       <Input
-        className="h-8 text-sm"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        className={cn(
+          "h-8 text-sm",
+          isDirty && "border-primary/80 bg-primary/5 focus-visible:ring-primary",
+        )}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
       />
       {isDirty && (
         <Button
           size="sm"
           className="h-8 shrink-0"
-          onClick={() => onSave(draft)}
+          onClick={() => onSave(value)}
           disabled={disabled}
+          title="Save this line"
         >
           <Save size={12} />
           Save
@@ -335,8 +343,38 @@ export default function ReviewDashboard() {
   // complete between two samples with no OBSERVED change to react to.
   const { data: job } = useJob(jobId);
   const updateLine = useUpdateDialogueLine(jobId);
+  const batchUpdate = useBatchUpdateDialogueLines(jobId);
   const approveJob = useApproveJob(jobId);
   const queryClient = useQueryClient();
+
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const getDraft = (line: DialogueLine) =>
+    drafts[line.id] !== undefined ? drafts[line.id] : (line.translated_text ?? "");
+
+  const handleDraftChange = (lineId: string, text: string) => {
+    setDrafts((prev) => ({ ...prev, [lineId]: text }));
+  };
+
+  const dirtyLines = (lines ?? []).filter((line) => {
+    const draft = drafts[line.id];
+    return draft !== undefined && draft !== (line.translated_text ?? "");
+  });
+  const dirtyCount = dirtyLines.length;
+
+  async function handleSaveAll() {
+    if (dirtyCount === 0 || editingLocked) return;
+    const payload = dirtyLines.map((line) => ({
+      id: line.id,
+      translated_text: drafts[line.id],
+    }));
+    await batchUpdate.mutateAsync(payload);
+    setDrafts({});
+  }
+
+  function handleDiscardAll() {
+    setDrafts({});
+  }
   // The video preview (useJobVideoUrl below) is its own independent query,
   // not reactively tied to `job` — so when muxed_video_gcs_uri changes to a
   // FRESH blob (every mux gets a brand new GCS path, see mux_service.py),
@@ -490,6 +528,32 @@ export default function ReviewDashboard() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          {dirtyCount > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/10 px-3 py-1 text-sm animate-in fade-in">
+              <span className="font-medium text-foreground">
+                {dirtyCount} line{dirtyCount > 1 ? "s" : ""} modified
+              </span>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={handleSaveAll}
+                disabled={editingLocked || batchUpdate.isPending}
+                className="h-8 shadow-sm"
+              >
+                <Save size={14} className="mr-1.5" />
+                {batchUpdate.isPending ? "Re-dubbing..." : `Save All Translated Script (${dirtyCount})`}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDiscardAll}
+                disabled={batchUpdate.isPending}
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Discard
+              </Button>
+            </div>
+          )}
           {!hasMuxedVideo && hasAnyDubbedLine && jobId && (
             <DownloadAudioBundleButton jobId={jobId} />
           )}
@@ -574,6 +638,17 @@ export default function ReviewDashboard() {
         </Alert>
       )}
 
+      {batchUpdate.isError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>
+            Batch save/re-dub failed:{" "}
+            {batchUpdate.error instanceof Error
+              ? batchUpdate.error.message
+              : "Unknown error"}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {jobStatus?.muxSucceeded === false && (
         <Alert variant="destructive" className="mb-4">
           <AlertTriangle size={16} />
@@ -596,6 +671,7 @@ export default function ReviewDashboard() {
 
       {video && (
         <video
+          key={video.url}
           controls
           src={video.url}
           className="mb-6 max-h-[36rem] w-full rounded-lg border bg-black"
@@ -613,7 +689,22 @@ export default function ReviewDashboard() {
         <TableHeader>
           <TableRow>
             <TableHead>Original</TableHead>
-            <TableHead>Translated</TableHead>
+            <TableHead>
+              <div className="flex items-center justify-between gap-2">
+                <span>Translated Script</span>
+                {dirtyCount > 0 && (
+                  <Button
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={handleSaveAll}
+                    disabled={editingLocked || batchUpdate.isPending}
+                  >
+                    <Save size={12} className="mr-1" />
+                    Save All ({dirtyCount})
+                  </Button>
+                )}
+              </div>
+            </TableHead>
             <TableHead>Safety</TableHead>
             <TableHead>Character / Voice</TableHead>
             <TableHead>Audio</TableHead>
@@ -628,10 +719,17 @@ export default function ReviewDashboard() {
               <TableCell className="align-top">
                 <EditableTranslation
                   line={line}
-                  onSave={(text) =>
-                    updateLine.mutate({ lineId: line.id, translatedText: text })
-                  }
-                  disabled={editingLocked}
+                  value={getDraft(line)}
+                  onChange={(text) => handleDraftChange(line.id, text)}
+                  onSave={(text) => {
+                    updateLine.mutate({ lineId: line.id, translatedText: text });
+                    setDrafts((prev) => {
+                      const next = { ...prev };
+                      delete next[line.id];
+                      return next;
+                    });
+                  }}
+                  disabled={editingLocked || batchUpdate.isPending}
                 />
               </TableCell>
               <TableCell className="align-top">

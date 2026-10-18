@@ -308,6 +308,29 @@ export function useUpdateDialogueLine(jobId: string | undefined) {
   });
 }
 
+export function useBatchUpdateDialogueLines(jobId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      lines: Array<{
+        id: string;
+        translated_text?: string;
+        character_id?: string;
+        safety_status?: "ok" | "flagged";
+      }>,
+    ) =>
+      apiFetch<DialogueLine[]>(`/jobs/${jobId}/dialogue-lines/batch`, {
+        method: "PATCH",
+        body: JSON.stringify({ lines }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dialogue-lines", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["project-jobs"] });
+    },
+  });
+}
+
 export function useApproveJob(jobId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({

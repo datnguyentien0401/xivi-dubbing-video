@@ -539,6 +539,104 @@ async def test_update_dialogue_line_400_when_no_fields_given(
     assert exc_info.value.status_code == 400
 
 
+async def test_batch_update_dialogue_lines_success_and_triggers_single_redub(
+    session: AsyncSession, owner_line_and_character, monkeypatch
+):
+    from api.core.config import settings
+    from api.core.firebase_auth import CurrentUser
+    from api.db.models import DialogueLine
+    from api.routers import jobs as jobs_router
+    from api.schemas.schemas import DialogueLineBatchItem, DialogueLinesBatchUpdate
+
+    monkeypatch.setattr(settings, "use_local_pubsub", True)
+    owner, job, line1, character, _project = owner_line_and_character
+
+    # Add a second line on the same job
+    line2 = DialogueLine(
+        job_id=job.id,
+        start_time=3.0,
+        end_time=5.0,
+        original_text="Second original line",
+        translated_text="Old second text",
+        safety_status="ok",
+        dubbed_audio_gcs_uri="gs://test-bucket/old-audio-2.wav",
+    )
+    session.add(line2)
+    await session.commit()
+    await session.refresh(line2)
+
+    payload = DialogueLinesBatchUpdate(
+        lines=[
+            DialogueLineBatchItem(id=line1.id, translated_text="New line 1 translation"),
+            DialogueLineBatchItem(id=line2.id, translated_text="New line 2 translation"),
+        ]
+    )
+
+    results = await jobs_router.batch_update_dialogue_lines(
+        job_id=job.id,
+        payload=payload,
+        background_tasks=BackgroundTasks(),
+        session=session,
+        user=CurrentUser(id=owner.id, firebase_uid=owner.firebase_uid, email=owner.email),
+    )
+
+    assert len(results) == 2
+    res_by_id = {r.id: r for r in results}
+    assert res_by_id[line1.id].translated_text == "New line 1 translation"
+    assert res_by_id[line1.id].dubbed_audio_gcs_uri is None
+    assert res_by_id[line2.id].translated_text == "New line 2 translation"
+    assert res_by_id[line2.id].dubbed_audio_gcs_uri is None
+
+    await session.refresh(job)
+    assert job.current_stage == "safety_checked"
+
+
+async def test_batch_update_dialogue_lines_409_when_not_ready_for_review(
+    session: AsyncSession, owner_line_and_character
+):
+    from api.core.firebase_auth import CurrentUser
+    from api.routers import jobs as jobs_router
+    from api.schemas.schemas import DialogueLineBatchItem, DialogueLinesBatchUpdate
+
+    owner, job, line, _character, _project = owner_line_and_character
+    job.current_stage = "dubbing"
+    await session.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await jobs_router.batch_update_dialogue_lines(
+            job_id=job.id,
+            payload=DialogueLinesBatchUpdate(
+                lines=[DialogueLineBatchItem(id=line.id, translated_text="New text")]
+            ),
+            background_tasks=BackgroundTasks(),
+            session=session,
+            user=CurrentUser(id=owner.id, firebase_uid=owner.firebase_uid, email=owner.email),
+        )
+    assert exc_info.value.status_code == 409
+
+
+async def test_batch_update_dialogue_lines_404_when_line_not_found(
+    session: AsyncSession, owner_line_and_character
+):
+    from api.core.firebase_auth import CurrentUser
+    from api.routers import jobs as jobs_router
+    from api.schemas.schemas import DialogueLineBatchItem, DialogueLinesBatchUpdate
+
+    owner, job, _line, _character, _project = owner_line_and_character
+
+    with pytest.raises(HTTPException) as exc_info:
+        await jobs_router.batch_update_dialogue_lines(
+            job_id=job.id,
+            payload=DialogueLinesBatchUpdate(
+                lines=[DialogueLineBatchItem(id=uuid.uuid4(), translated_text="Ghost line")]
+            ),
+            background_tasks=BackgroundTasks(),
+            session=session,
+            user=CurrentUser(id=owner.id, firebase_uid=owner.firebase_uid, email=owner.email),
+        )
+    assert exc_info.value.status_code == 404
+
+
 async def test_list_job_characters_returns_characters_of_same_project(
     session: AsyncSession, owner_line_and_character
 ):

@@ -52,6 +52,7 @@ from api.schemas.schemas import (
     Clip,
     DialogueLineOut,
     DialogueLineUpdate,
+    DialogueLinesBatchUpdate,
     EducationalContentOut,
     JobCreate,
     JobOut,
@@ -213,6 +214,124 @@ async def list_dialogue_lines(
         select(DialogueLine).where(DialogueLine.job_id == job_id).order_by(DialogueLine.start_time)
     )
     return result.scalars().all()
+
+
+@router.patch("/{job_id}/dialogue-lines/batch", response_model=list[DialogueLineOut])
+async def batch_update_dialogue_lines(
+    job_id: uuid.UUID,
+    payload: DialogueLinesBatchUpdate,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Batch edit multiple dialogue lines at once in a single transaction.
+
+    Used by ReviewDashboard's 'Save all translated script' feature. If any
+    updated line ends up needing redub (safety_status == 'ok', has translated_text,
+    no dubbed_audio_gcs_uri), moves job.current_stage to 'safety_checked' and
+    wakes up the worker via Pub/Sub ONCE for the entire batch. DubbingAgent
+    will re-dub only the lines whose audio was invalidated, and MuxService
+    will re-mux the video with the new audio clips.
+    """
+    job = await get_owned_job(session, job_id, user.id)
+    if job.current_stage != "ready_for_review":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Job hasn't reached the review stage yet (still processing), "
+            "cannot edit dialogue lines",
+        )
+
+    line_ids = [item.id for item in payload.lines]
+    stmt = (
+        select(DialogueLine)
+        .where(
+            DialogueLine.job_id == job_id,
+            DialogueLine.id.in_(line_ids),
+        )
+        .order_by(DialogueLine.start_time)
+    )
+    result = await session.execute(stmt)
+    lines_by_id = {line.id: line for line in result.scalars().all()}
+
+    if len(lines_by_id) != len(set(line_ids)):
+        missing = set(line_ids) - set(lines_by_id.keys())
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"Dialogue lines not found for this job: {missing}",
+        )
+
+    any_needs_redub = False
+    updated_lines: list[DialogueLine] = []
+    project_characters: set[uuid.UUID] | None = None
+
+    for item in payload.lines:
+        line = lines_by_id[item.id]
+
+        if (
+            item.translated_text is None
+            and item.character_id is None
+            and item.safety_status is None
+        ):
+            continue
+
+        changed = False
+
+        if item.translated_text is not None and item.translated_text != line.translated_text:
+            line.translated_text = item.translated_text
+            line.dubbed_audio_gcs_uri = None  # invalidated — old audio read old text
+            changed = True
+
+        if item.character_id is not None and item.character_id != line.character_id:
+            if project_characters is None:
+                chars_res = await session.execute(
+                    select(Character.id).where(Character.project_id == job.project_id)
+                )
+                project_characters = set(chars_res.scalars().all())
+
+            if item.character_id not in project_characters:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND,
+                    f"Character {item.character_id} does not belong to this project",
+                )
+            line.character_id = item.character_id
+            line.dubbed_audio_gcs_uri = None  # invalidated — old audio used old voice
+            changed = True
+
+        if item.safety_status is not None and item.safety_status != line.safety_status:
+            line.safety_status = item.safety_status
+            line.safety_reasoning = (
+                "Manually marked safe by the reviewer."
+                if item.safety_status == "ok"
+                else "Manually flagged by the reviewer."
+            )
+            if item.safety_status == "flagged":
+                line.dubbed_audio_gcs_uri = None
+            changed = True
+
+        if (
+            line.safety_status == "ok"
+            and bool(line.translated_text)
+            and not line.dubbed_audio_gcs_uri
+        ):
+            any_needs_redub = True
+
+        if changed:
+            updated_lines.append(line)
+
+    await session.commit()
+    for l in updated_lines:
+        await session.refresh(l)
+
+    if any_needs_redub:
+        job.current_stage = "safety_checked"
+        job.exported_video_gcs_uri = None
+        await session.commit()
+        if settings.use_local_pubsub:
+            schedule_local_job_created(background_tasks, str(job.id))
+        else:
+            publish_job_created(str(job.id))
+
+    return updated_lines
 
 
 @router.get("/{job_id}/educational-content", response_model=EducationalContentOut)
@@ -796,6 +915,7 @@ async def update_dialogue_line(
 
     if needs_redub:
         job.current_stage = "safety_checked"
+        job.exported_video_gcs_uri = None
         await session.commit()
         if settings.use_local_pubsub:
             schedule_local_job_created(background_tasks, str(job.id))

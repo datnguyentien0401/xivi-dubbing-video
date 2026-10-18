@@ -216,6 +216,17 @@ class DialogueLineUpdate(BaseModel):
     safety_status: Literal["ok", "flagged"] | None = None
 
 
+class DialogueLineBatchItem(BaseModel):
+    id: UUID
+    translated_text: str | None = None
+    character_id: UUID | None = None
+    safety_status: Literal["ok", "flagged"] | None = None
+
+
+class DialogueLinesBatchUpdate(BaseModel):
+    lines: list[DialogueLineBatchItem] = Field(min_length=1)
+
+
 class VocabularyItemOut(BaseModel):
     id: UUID
     term: str
