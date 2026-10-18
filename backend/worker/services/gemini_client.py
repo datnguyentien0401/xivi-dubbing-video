@@ -188,7 +188,7 @@ def _cache_key(*parts: str) -> str:
 # since test jobs so far have all had English sources — but ja/zh/th are
 # genuinely valid source languages in NewProject.tsx, not a theoretical edge
 # case).
-_NON_SPACE_DELIMITED_LANGS = {"ja", "zh", "th"}
+_NON_SPACE_DELIMITED_LANGS = {"ja", "zh", "zh-tw", "th", "km", "my", "lo"}
 
 # Rough localization-industry rule-of-thumb for how much LONGER (positive) or
 # SHORTER (negative) a target language typically comes out compared to the
@@ -215,8 +215,17 @@ _LENGTH_EXPANSION_FROM_ENGLISH: dict[str, float] = {
     "vi": 0.05,  # Vietnamese
     "ja": -0.15,  # Japanese — dense script, usually shorter in character count
     "ko": -0.05,  # Korean
-    "zh": -0.25,  # Chinese — very dense in character count
+    "zh": -0.25,  # Chinese (Simplified) — very dense in character count
+    "zh-tw": -0.25,  # Chinese (Traditional)
     "th": -0.10,  # Thai
+    "hi": 0.15,  # Hindi
+    "bn": 0.15,  # Bengali
+    "ta": 0.15,  # Tamil
+    "te": 0.15,  # Telugu
+    "ur": 0.15,  # Urdu
+    "km": 0.05,  # Khmer
+    "my": 0.05,  # Burmese
+    "lo": 0.05,  # Lao
 }
 
 # Below this magnitude, a language's expansion/contraction tendency is too

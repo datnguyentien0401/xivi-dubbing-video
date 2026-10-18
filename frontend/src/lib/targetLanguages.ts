@@ -3,11 +3,14 @@
 // modules don't end up importing each other's unrelated dependencies.
 
 export const SOURCE_LANGUAGES = [
-  { code: "vi", label: "Tiếng Việt" },
+  { code: "en", label: "English" },
+  { code: "vi", label: "Tiếng Việt (Vietnamese)" },
   { code: "ja", label: "日本語 (Japanese)" },
   { code: "ko", label: "한국어 (Korean)" },
   { code: "zh", label: "中文 (Chinese)" },
-  { code: "en", label: "English" },
+  { code: "hi", label: "हिन्दी (Hindi)" },
+  { code: "th", label: "ภาษาไทย (Thai)" },
+  { code: "id", label: "Bahasa Indonesia" },
 ];
 
 // Target JAPAC languages — grouped by region, flag per country (see
@@ -23,7 +26,27 @@ export const TARGET_LANGUAGE_GROUPS: {
   }[];
 }[] = [
   {
-    region: "Southeast Asia",
+    region: "Global & Oceania",
+    languages: [
+      {
+        code: "en",
+        label: "English",
+        englishLabel: "English",
+        flag: "🇺🇸",
+      },
+    ],
+  },
+  {
+    region: "East Asia (Đông Á)",
+    languages: [
+      { code: "ja", label: "日本語", englishLabel: "Japanese", flag: "🇯🇵" },
+      { code: "ko", label: "한국어", englishLabel: "Korean", flag: "🇰🇷" },
+      { code: "zh", label: "中文 (简体)", englishLabel: "Chinese (Simplified)", flag: "🇨🇳" },
+      { code: "zh-TW", label: "繁體中文", englishLabel: "Chinese (Traditional)", flag: "🇹🇼" },
+    ],
+  },
+  {
+    region: "Southeast Asia (Đông Nam Á)",
     languages: [
       {
         code: "vi",
@@ -37,17 +60,22 @@ export const TARGET_LANGUAGE_GROUPS: {
         englishLabel: "Indonesian",
         flag: "🇮🇩",
       },
-      { code: "tl", label: "Filipino", englishLabel: "Filipino", flag: "🇵🇭" },
+      { code: "tl", label: "Filipino (Tagalog)", englishLabel: "Filipino", flag: "🇵🇭" },
       { code: "th", label: "ภาษาไทย", englishLabel: "Thai", flag: "🇹🇭" },
       { code: "ms", label: "Bahasa Melayu", englishLabel: "Malay", flag: "🇲🇾" },
+      { code: "km", label: "ភាសាខ្មែរ", englishLabel: "Khmer", flag: "🇰🇭" },
+      { code: "my", label: "မြန်မာစာ", englishLabel: "Burmese", flag: "🇲🇲" },
+      { code: "lo", label: "ພາສາລາວ", englishLabel: "Lao", flag: "🇱🇦" },
     ],
   },
   {
-    region: "East Asia",
+    region: "South Asia (Nam Á)",
     languages: [
-      { code: "ja", label: "日本語", englishLabel: "Japanese", flag: "🇯🇵" },
-      { code: "ko", label: "한국어", englishLabel: "Korean", flag: "🇰🇷" },
-      { code: "zh", label: "中文", englishLabel: "Chinese", flag: "🇨🇳" },
+      { code: "hi", label: "हिन्दी", englishLabel: "Hindi", flag: "🇮🇳" },
+      { code: "bn", label: "বাংলা", englishLabel: "Bengali", flag: "🇧🇩" },
+      { code: "ta", label: "தமிழ்", englishLabel: "Tamil", flag: "🇮🇳" },
+      { code: "te", label: "తెలుగు", englishLabel: "Telugu", flag: "🇮🇳" },
+      { code: "ur", label: "اردو", englishLabel: "Urdu", flag: "🇵🇰" },
     ],
   },
 ];

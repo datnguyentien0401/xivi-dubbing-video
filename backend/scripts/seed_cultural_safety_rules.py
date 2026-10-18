@@ -54,6 +54,62 @@ SEED_RULES: list[dict[str, str]] = [
         ),
         "severity": "medium",
     },
+    {
+        "target_market": "tl",
+        "rule_description": (
+            "Tránh nội dung chế giễu gia đình/người lớn tuổi và cẩn trọng với các yếu tố tôn giáo Công giáo."
+        ),
+        "severity": "medium",
+    },
+    {
+        "target_market": "hi",
+        "rule_description": (
+            "Tránh đề cập đến thịt bò hoặc các hình ảnh động chạm đến sự linh thiêng của loài bò trong văn hóa Hindu."
+        ),
+        "severity": "high",
+    },
+    {
+        "target_market": "hi",
+        "rule_description": (
+            "Cẩn trọng với các yếu tố phân biệt đẳng cấp xã hội hoặc tôn giáo giữa các nhân vật thiếu nhi."
+        ),
+        "severity": "high",
+    },
+    {
+        "target_market": "th",
+        "rule_description": (
+            "Tuyệt đối tránh mọi bình luận, câu đùa hoặc hàm ý liên quan đến Hoàng gia Thái Lan."
+        ),
+        "severity": "high",
+    },
+    {
+        "target_market": "th",
+        "rule_description": (
+            "Tránh chạm vào đầu nhân vật hoặc chỉ chân vào người khác/tượng Phật (kiêng kỵ văn hóa Thái)."
+        ),
+        "severity": "medium",
+    },
+    {
+        "target_market": "ja",
+        "rule_description": (
+            "Đảm bảo kính ngữ và cách xưng hô phù hợp thứ bậc xã hội và chuẩn mực ứng xử trẻ em Nhật Bản."
+        ),
+        "severity": "medium",
+    },
+    {
+        "target_market": "ko",
+        "rule_description": (
+            "Tôn trọng tôn ti trật tự tuổi tác trong giao tiếp và xưng hô giữa các nhân vật thiếu nhi."
+        ),
+        "severity": "medium",
+    },
+    {
+        "target_market": "zh",
+        "rule_description": (
+            "Tránh các biểu tượng mê tín dị đoan thái quá và đảm bảo ngôn từ trong sáng, tích cực theo chuẩn mực giáo dục."
+        ),
+        "severity": "medium",
+    },
 ]
 
 
