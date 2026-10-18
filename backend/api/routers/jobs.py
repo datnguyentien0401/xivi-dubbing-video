@@ -24,6 +24,7 @@ from api.core.local_pubsub_client import (
     schedule_local_job_attach_video_requested,
     schedule_local_job_created,
     schedule_local_job_export_requested,
+    schedule_local_line_redub,
 )
 from api.core.ownership import (
     get_owned_character,
@@ -35,6 +36,7 @@ from api.core.pubsub_client import (
     publish_job_attach_video_requested,
     publish_job_created,
     publish_job_export_requested,
+    publish_line_redub,
 )
 from api.db.models import (
     Character,
@@ -914,13 +916,10 @@ async def update_dialogue_line(
     await session.refresh(line)
 
     if needs_redub:
-        job.current_stage = "safety_checked"
-        job.exported_video_gcs_uri = None
-        await session.commit()
         if settings.use_local_pubsub:
-            schedule_local_job_created(background_tasks, str(job.id))
+            schedule_local_line_redub(background_tasks, str(line.id))
         else:
-            publish_job_created(str(job.id))
+            publish_line_redub(str(line.id))
 
     return line
 

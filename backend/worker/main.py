@@ -409,6 +409,57 @@ async def _classify_character_voice_sample(character_id: str) -> None:
         await session.commit()
 
 
+async def _redub_single_line(line_id: str) -> None:
+    """Handle message type="line_redub" — user edited an individual line's text,
+    character, or safety status in ReviewDashboard. Synthesizes ONLY that line's
+    audio clip via Gemini Native Audio without running the rest of the pipeline
+    (no heavy FFmpeg video re-muxing and no Educational Content generation).
+    Those full pipeline tasks are reserved for 'Save All Changes'."""
+    async with AsyncSessionLocal() as session:
+        line = await session.get(DialogueLineRow, uuid.UUID(line_id))
+        if line is None or line.safety_status != "ok" or not line.translated_text:
+            return
+
+        job = await session.get(Job, line.job_id)
+        if job is None:
+            return
+
+        character = None
+        if line.character_id:
+            character = await session.get(CharacterRow, line.character_id)
+
+        voice_style = "neutral, clear"
+        voice_name = None
+        voice_id = None
+
+        if character and character.voice_profile_metadata:
+            meta = character.voice_profile_metadata
+            voice_style = meta.get("style_description", "neutral, clear")
+            voice_name = meta.get("voice_name")
+            voice_id = meta.get("voice_id")
+
+        try:
+            audio_bytes = await _gemini.synthesize_dubbed_audio(
+                dialogue_line_id=str(line.id),
+                text=line.translated_text,
+                target_lang=job.target_language,
+                voice_style=voice_style,
+                character_id=str(character.id) if character else None,
+                voice_name=voice_name,
+                voice_id=voice_id,
+            )
+
+            blob_name = f"jobs/{job.id}/dubbed/{line.id}-{uuid.uuid4().hex[:8]}.wav"
+            line.dubbed_audio_gcs_uri = await _gcs.upload_bytes(
+                audio_bytes, blob_name, content_type="audio/wav"
+            )
+            await session.commit()
+            logger.info("line %s: single-line re-dub succeeded", line_id)
+        except Exception:
+            logger.exception("line %s: single-line re-dub failed", line_id)
+
+
+
 async def _export_job(job_id: str) -> None:
     """Handle message type="job_export" (POST /jobs/{id}/export,
     specs/002-video-editor) — renders the REAL export from `jobs.timeline_edits`
@@ -640,6 +691,18 @@ async def handle_pubsub_push(request: Request):
             return {"status": "skipped_duplicate"}
         try:
             await _attach_video(job_id)
+        finally:
+            await _redis.release_lock(lock_key)
+        return {"status": "processed"}
+
+    if message_type == "line_redub":
+        line_id = payload["line_id"]
+        lock_key = f"pubsub_lock:line_redub:{line_id}"
+        if not await _redis.acquire_lock(lock_key, 60):
+            logger.info("line %s: line_redub is already being processed, skipping", line_id)
+            return {"status": "skipped_duplicate"}
+        try:
+            await _redub_single_line(line_id)
         finally:
             await _redis.release_lock(lock_key)
         return {"status": "processed"}

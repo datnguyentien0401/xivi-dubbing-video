@@ -315,18 +315,20 @@ async def test_update_dialogue_line_reassigns_character_and_triggers_redub(
     monkeypatch.setattr(settings, "use_local_pubsub", True)
     owner, job, line, character, _project = owner_line_and_character
 
+    background_tasks = BackgroundTasks()
     result = await jobs_router.update_dialogue_line(
         line_id=line.id,
         payload=DialogueLineUpdate(character_id=character.id),
-        background_tasks=BackgroundTasks(),
+        background_tasks=background_tasks,
         session=session,
         user=CurrentUser(id=owner.id, firebase_uid=owner.firebase_uid, email=owner.email),
     )
 
     assert result.character_id == character.id
     assert result.dubbed_audio_gcs_uri is None
+    assert len(background_tasks.tasks) == 1
     await session.refresh(job)
-    assert job.current_stage == "safety_checked"
+    assert job.current_stage == "ready_for_review"
 
 
 async def test_update_dialogue_line_404_when_character_belongs_to_other_project(
@@ -455,7 +457,7 @@ async def test_update_dialogue_line_marking_safe_unblocks_redub(
     assert result.safety_status == "ok"
     assert result.safety_reasoning == "Manually marked safe by the reviewer."
     await session.refresh(job)
-    assert job.current_stage == "safety_checked"  # worker woken up
+    assert job.current_stage == "ready_for_review"  # stays ready_for_review during single-line redub
 
 
 async def test_update_dialogue_line_combined_text_and_safety_status_in_one_call(
@@ -486,7 +488,7 @@ async def test_update_dialogue_line_combined_text_and_safety_status_in_one_call(
     assert result.translated_text == "fixed text"
     assert result.safety_status == "ok"
     await session.refresh(job)
-    assert job.current_stage == "safety_checked"
+    assert job.current_stage == "ready_for_review"
 
 
 async def test_update_dialogue_line_reflagging_revokes_existing_audio(

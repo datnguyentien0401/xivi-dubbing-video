@@ -74,3 +74,8 @@ def schedule_local_voice_sample_uploaded(
     background_tasks.add_task(
         _deliver_message, {"type": "voice_sample", "character_id": character_id}
     )
+
+
+def schedule_local_line_redub(background_tasks: BackgroundTasks, line_id: str) -> None:
+    background_tasks.add_task(_deliver_message, {"type": "line_redub", "line_id": line_id})
+

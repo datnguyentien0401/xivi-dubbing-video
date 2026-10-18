@@ -1,4 +1,4 @@
-# XIVI (ToonLingo) — Kids' Animation Localization Agent
+# XIVI Studio — Kids' Animation Localization Agent
 
 > **Multilingual Agentic Video Dubbing & Localization Platform for Children's Content**  
 > Powered by **Google Gemini** (Gemini 3.6 Flash multimodal/text, Gemini 3.1 Flash Native Audio TTS, and Gemini 3.8 Flash Voice Design) deployed on **Google Cloud Run** and **Firebase Hosting**.

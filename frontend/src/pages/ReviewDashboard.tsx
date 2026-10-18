@@ -59,29 +59,32 @@ const UNASSIGNED_VALUE = "__unassigned__";
 
 function CharacterVoiceSelect({
   line,
-  characters,
+  value,
+  onChange,
   onSave,
+  characters,
   disabled,
 }: {
   line: DialogueLine;
-  characters: Character[];
+  value: string;
+  onChange: (characterId: string) => void;
   onSave: (characterId: string) => void;
+  characters: Character[];
   disabled: boolean;
 }) {
   const initial = line.character_id ?? "";
-  const [draft, setDraft] = useState(initial);
-  const isDirty = draft !== "" && draft !== initial;
+  const isDirty = value !== initial;
 
   return (
     <div className="flex items-center gap-2">
       <Select
-        value={draft === "" ? UNASSIGNED_VALUE : draft}
-        onValueChange={(value) =>
-          setDraft(value === UNASSIGNED_VALUE ? "" : value)
+        value={value === "" ? UNASSIGNED_VALUE : value}
+        onValueChange={(val) =>
+          onChange(val === UNASSIGNED_VALUE ? "" : val)
         }
         disabled={disabled}
       >
-        <SelectTrigger className="h-8 text-sm">
+        <SelectTrigger className={cn("h-8 text-sm", isDirty && "border-primary/80 bg-primary/5 focus-visible:ring-primary")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -98,8 +101,9 @@ function CharacterVoiceSelect({
         <Button
           size="sm"
           className="h-8 shrink-0"
-          onClick={() => onSave(draft)}
+          onClick={() => onSave(value)}
           disabled={disabled}
+          title="Re-dub audio for this line"
         >
           <RefreshCw size={12} />
           Re-dub
@@ -141,7 +145,7 @@ function EditableTranslation({
           className="h-8 shrink-0"
           onClick={() => onSave(value)}
           disabled={disabled}
-          title="Save this line"
+          title="Save and re-dub audio for this line"
         >
           <Save size={12} />
           Save
@@ -162,22 +166,20 @@ function EditableTranslation({
  * revokes any existing audio for a line the reviewer decides is unsafe. */
 function EditableSafetyStatus({
   line,
+  value,
+  onChange,
   onSave,
   disabled,
 }: {
   line: DialogueLine;
+  value: "ok" | "flagged";
+  onChange: (status: "ok" | "flagged") => void;
   onSave: (status: "ok" | "flagged") => void;
   disabled: boolean;
 }) {
-  // "pending" (SafetyAgent hasn't finished checking yet) has no edit target
-  // of its own — normalize it to "ok" as the default draft/baseline so the
-  // Save button doesn't appear spuriously before the user touches anything.
-  // In practice every line reaching Review has already been checked, so
-  // "pending" here would only mean the AI check is still running.
   const normalized: "ok" | "flagged" =
     line.safety_status === "flagged" ? "flagged" : "ok";
-  const [draft, setDraft] = useState<"ok" | "flagged">(normalized);
-  const isDirty = draft !== normalized;
+  const isDirty = value !== normalized;
 
   return (
     <div className="flex flex-col items-start gap-1.5">
@@ -187,11 +189,11 @@ function EditableSafetyStatus({
       />
       <div className="flex items-center gap-2">
         <Select
-          value={draft}
-          onValueChange={(value) => setDraft(value as "ok" | "flagged")}
+          value={value}
+          onValueChange={(val) => onChange(val as "ok" | "flagged")}
           disabled={disabled}
         >
-          <SelectTrigger className="h-7 text-xs">
+          <SelectTrigger className={cn("h-7 text-xs", isDirty && "border-primary/80 bg-primary/5")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -203,8 +205,9 @@ function EditableSafetyStatus({
           <Button
             size="sm"
             className="h-7 shrink-0"
-            onClick={() => onSave(draft)}
+            onClick={() => onSave(value)}
             disabled={disabled}
+            title="Apply and re-dub audio"
           >
             <Save size={12} />
             Save
@@ -347,33 +350,119 @@ export default function ReviewDashboard() {
   const approveJob = useApproveJob(jobId);
   const queryClient = useQueryClient();
 
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  interface LineDraft {
+    translatedText?: string;
+    characterId?: string | null;
+    safetyStatus?: "ok" | "flagged";
+  }
 
-  const getDraft = (line: DialogueLine) =>
-    drafts[line.id] !== undefined ? drafts[line.id] : (line.translated_text ?? "");
+  const [lineDrafts, setLineDrafts] = useState<Record<string, LineDraft>>({});
 
-  const handleDraftChange = (lineId: string, text: string) => {
-    setDrafts((prev) => ({ ...prev, [lineId]: text }));
+  const getTranslationDraft = (line: DialogueLine) =>
+    lineDrafts[line.id]?.translatedText !== undefined
+      ? lineDrafts[line.id].translatedText!
+      : (line.translated_text ?? "");
+
+  const getCharacterDraft = (line: DialogueLine) =>
+    lineDrafts[line.id]?.characterId !== undefined
+      ? lineDrafts[line.id].characterId!
+      : (line.character_id ?? "");
+
+  const getSafetyDraft = (line: DialogueLine): "ok" | "flagged" =>
+    lineDrafts[line.id]?.safetyStatus !== undefined
+      ? lineDrafts[line.id].safetyStatus!
+      : (line.safety_status === "flagged" ? "flagged" : "ok");
+
+  const setFieldDraft = <K extends keyof LineDraft>(
+    lineId: string,
+    field: K,
+    value: LineDraft[K],
+  ) => {
+    setLineDrafts((prev) => ({
+      ...prev,
+      [lineId]: {
+        ...prev[lineId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const clearFieldDraft = <K extends keyof LineDraft>(
+    lineId: string,
+    field: K,
+  ) => {
+    setLineDrafts((prev) => {
+      const current = prev[lineId];
+      if (!current) return prev;
+      const nextLine = { ...current };
+      delete nextLine[field];
+      if (Object.keys(nextLine).length === 0) {
+        const next = { ...prev };
+        delete next[lineId];
+        return next;
+      }
+      return { ...prev, [lineId]: nextLine };
+    });
   };
 
   const dirtyLines = (lines ?? []).filter((line) => {
-    const draft = drafts[line.id];
-    return draft !== undefined && draft !== (line.translated_text ?? "");
+    const draft = lineDrafts[line.id];
+    if (!draft) return false;
+    const isTextDirty =
+      draft.translatedText !== undefined &&
+      draft.translatedText !== (line.translated_text ?? "");
+    const isCharDirty =
+      draft.characterId !== undefined &&
+      draft.characterId !== (line.character_id ?? "");
+    const isSafetyDirty =
+      draft.safetyStatus !== undefined &&
+      draft.safetyStatus !== (line.safety_status === "flagged" ? "flagged" : "ok");
+    return isTextDirty || isCharDirty || isSafetyDirty;
   });
   const dirtyCount = dirtyLines.length;
 
-  async function handleSaveAll() {
+  async function handleSaveAllChanges() {
     if (dirtyCount === 0 || editingLocked) return;
-    const payload = dirtyLines.map((line) => ({
-      id: line.id,
-      translated_text: drafts[line.id],
-    }));
-    await batchUpdate.mutateAsync(payload);
-    setDrafts({});
+    try {
+      const payload = dirtyLines.map((line) => {
+        const draft = lineDrafts[line.id] ?? {};
+        return {
+          id: line.id,
+          translated_text:
+            draft.translatedText !== undefined
+              ? draft.translatedText
+              : undefined,
+          character_id:
+            draft.characterId !== undefined && draft.characterId !== "" && draft.characterId !== null
+              ? draft.characterId
+              : undefined,
+          safety_status: draft.safetyStatus,
+        };
+      });
+      await batchUpdate.mutateAsync(payload);
+      setLineDrafts({});
+    } catch (err) {
+      console.error("Batch save failed:", err);
+    }
   }
 
   function handleDiscardAll() {
-    setDrafts({});
+    setLineDrafts({});
+  }
+
+  function handleSaveSingleTranslation(lineId: string, text: string) {
+    updateLine.mutate({ lineId, translatedText: text });
+    clearFieldDraft(lineId, "translatedText");
+  }
+
+  function handleSaveSingleCharacter(lineId: string, characterId: string) {
+    updateLine.mutate({ lineId, characterId: characterId || undefined });
+    clearFieldDraft(lineId, "characterId");
+  }
+
+  function handleSaveSingleSafety(lineId: string, status: "ok" | "flagged") {
+    updateLine.mutate({ lineId, safetyStatus: status });
+    clearFieldDraft(lineId, "safetyStatus");
   }
   // The video preview (useJobVideoUrl below) is its own independent query,
   // not reactively tied to `job` — so when muxed_video_gcs_uri changes to a
@@ -529,19 +618,19 @@ export default function ReviewDashboard() {
         </div>
         <div className="flex items-center gap-2">
           {dirtyCount > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/10 px-3 py-1 text-sm animate-in fade-in">
+            <div className="flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/10 px-3 py-1.5 text-sm animate-in fade-in shadow-sm">
               <span className="font-medium text-foreground">
                 {dirtyCount} line{dirtyCount > 1 ? "s" : ""} modified
               </span>
               <Button
                 size="sm"
                 variant="default"
-                onClick={handleSaveAll}
+                onClick={handleSaveAllChanges}
                 disabled={editingLocked || batchUpdate.isPending}
-                className="h-8 shadow-sm"
+                className="h-8 shadow-sm font-medium"
               >
                 <Save size={14} className="mr-1.5" />
-                {batchUpdate.isPending ? "Re-dubbing..." : `Save All Translated Script (${dirtyCount})`}
+                {batchUpdate.isPending ? "Saving & Re-muxing..." : `Save All Changes (${dirtyCount})`}
               </Button>
               <Button
                 size="sm"
@@ -689,22 +778,7 @@ export default function ReviewDashboard() {
         <TableHeader>
           <TableRow>
             <TableHead>Original</TableHead>
-            <TableHead>
-              <div className="flex items-center justify-between gap-2">
-                <span>Translated Script</span>
-                {dirtyCount > 0 && (
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={handleSaveAll}
-                    disabled={editingLocked || batchUpdate.isPending}
-                  >
-                    <Save size={12} className="mr-1" />
-                    Save All ({dirtyCount})
-                  </Button>
-                )}
-              </div>
-            </TableHead>
+            <TableHead>Translated Script</TableHead>
             <TableHead>Safety</TableHead>
             <TableHead>Character / Voice</TableHead>
             <TableHead>Audio</TableHead>
@@ -719,36 +793,29 @@ export default function ReviewDashboard() {
               <TableCell className="align-top">
                 <EditableTranslation
                   line={line}
-                  value={getDraft(line)}
-                  onChange={(text) => handleDraftChange(line.id, text)}
-                  onSave={(text) => {
-                    updateLine.mutate({ lineId: line.id, translatedText: text });
-                    setDrafts((prev) => {
-                      const next = { ...prev };
-                      delete next[line.id];
-                      return next;
-                    });
-                  }}
+                  value={getTranslationDraft(line)}
+                  onChange={(text) => setFieldDraft(line.id, "translatedText", text)}
+                  onSave={(text) => handleSaveSingleTranslation(line.id, text)}
                   disabled={editingLocked || batchUpdate.isPending}
                 />
               </TableCell>
               <TableCell className="align-top">
                 <EditableSafetyStatus
                   line={line}
-                  onSave={(status) =>
-                    updateLine.mutate({ lineId: line.id, safetyStatus: status })
-                  }
-                  disabled={editingLocked}
+                  value={getSafetyDraft(line)}
+                  onChange={(status) => setFieldDraft(line.id, "safetyStatus", status)}
+                  onSave={(status) => handleSaveSingleSafety(line.id, status)}
+                  disabled={editingLocked || batchUpdate.isPending}
                 />
               </TableCell>
               <TableCell className="align-top">
                 <CharacterVoiceSelect
                   line={line}
+                  value={getCharacterDraft(line)}
+                  onChange={(charId) => setFieldDraft(line.id, "characterId", charId)}
+                  onSave={(charId) => handleSaveSingleCharacter(line.id, charId)}
                   characters={characters ?? []}
-                  onSave={(characterId) =>
-                    updateLine.mutate({ lineId: line.id, characterId })
-                  }
-                  disabled={editingLocked}
+                  disabled={editingLocked || batchUpdate.isPending}
                 />
               </TableCell>
               <TableCell className="align-top">
@@ -758,12 +825,7 @@ export default function ReviewDashboard() {
                     signedUrlPath={`/dialogue-lines/${line.id}/audio-url`}
                   />
                 ) : line.safety_status === "ok" && line.translated_text ? (
-                  // Already meets the conditions to have audio (safe +
-                  // translated) but doesn't yet — waiting for the worker to
-                  // re-dub (e.g. just changed the voice or edited the text,
-                  // see useUpdateDialogueLine), not the original "never
-                  // dubbed" state.
-                  <span className="text-muted-foreground">Re-dubbing...</span>
+                  <span className="text-muted-foreground animate-pulse">Generating audio...</span>
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}

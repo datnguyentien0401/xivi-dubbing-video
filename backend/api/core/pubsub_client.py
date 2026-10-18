@@ -70,3 +70,11 @@ def publish_voice_sample_uploaded(character_id: str) -> None:
     automatic voice profiling from video (worker/agents/voice_profiling_agent.py),
     reused via worker/main.py::_classify_character_voice_sample."""
     _publish({"type": "voice_sample", "character_id": character_id})
+
+
+def publish_line_redub(line_id: str) -> None:
+    """Triggers the worker to synthesize ONLY a single dialogue line's audio clip
+    via Gemini Native Audio without re-muxing the entire video. Used when saving
+    individual dialogue lines or reassigning character/safety in ReviewDashboard."""
+    _publish({"type": "line_redub", "line_id": line_id})
+
