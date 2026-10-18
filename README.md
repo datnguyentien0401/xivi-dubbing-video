@@ -15,14 +15,7 @@
 
 ## 🌐 Live Environments & Demo Links
 
-- **Web Application**: [https://toonlingo-app.web.app](https://toonlingo-app.web.app) (also available at [https://toonlingo-app.firebaseapp.com](https://toonlingo-app.firebaseapp.com))
-- **Backend API Service**: [https://toonlingo-api-765982386020.asia-southeast1.run.app](https://toonlingo-api-765982386020.asia-southeast1.run.app)
-- **Interactive OpenAPI (Swagger) Docs**: [https://toonlingo-api-765982386020.asia-southeast1.run.app/docs](https://toonlingo-api-765982386020.asia-southeast1.run.app/docs)
-- **Interactive Architecture & Deployment Report**: [`docs/deployment-report.html`](docs/deployment-report.html)
-- **Legacy Architecture Report**: [`docs/deployment-report-en.html`](docs/deployment-report-en.html)
-- **Test & Performance Benchmark Report**: [`docs/performance-report.md`](docs/performance-report.md)
-
----
+- **Web Application**: [https://xivi-studio.web.app](https://xivi-studio.web.app)
 
 ## 💡 What Makes XIVI Different?
 
