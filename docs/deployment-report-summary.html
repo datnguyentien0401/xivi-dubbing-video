@@ -289,9 +289,8 @@
       </p>
 
       <div class="links-row">
-        <a href="https://toonlingo-app.web.app" target="_blank" class="btn btn-primary">Live Web Application</a>
+        <a href="https://xivi-studio.web.app" target="_blank" class="btn btn-primary">Live Web Application</a>
         <a href="https://toonlingo-api-765982386020.asia-southeast1.run.app/docs" target="_blank" class="btn btn-outline">Interactive Swagger API</a>
-        <a href="deployment-report.html" class="btn btn-outline">Full Technical Report (1900+ lines)</a>
       </div>
 
       <!-- Quick KPI Numbers -->
@@ -406,8 +405,8 @@
           <div class="card-icon">🚀</div>
           <h4>3. Google Cloud Run (Decoupled Services)</h4>
           <p>
-            • <strong>API Orchestrator (<code>toonlingo-api</code>):</strong> Scales rapidly from 0 to 10 instances (scale-to-zero), delivering sub-50ms HTTP responses and issuing signed upload URLs.<br>
-            • <strong>Worker Container (<code>toonlingo-worker</code>):</strong> Allocated <strong>2 vCPU, 2 GiB RAM</strong>, timeout of 3600s, and <code>concurrency=1</code> to guarantee CPU-intensive FFmpeg tasks never suffer OOM errors.
+            • <strong>API Orchestrator:</strong> Scales rapidly from 0 to 10 instances (scale-to-zero), delivering sub-50ms HTTP responses and issuing signed upload URLs.<br>
+            • <strong>Worker Container:</strong> Allocated <strong>2 vCPU, 2 GiB RAM</strong>, timeout of 3600s, and <code>concurrency=1</code> to guarantee CPU-intensive FFmpeg tasks never suffer OOM errors.
           </p>
         </div>
       </div>
@@ -579,7 +578,7 @@ graph LR
             </tr>
             <tr>
               <td>Database Migrations</td>
-              <td>Dedicated Cloud Run Job (<code>toonlingo-migrate</code>) running <code>alembic upgrade head</code></td>
+              <td>Dedicated Cloud Run Job running <code>alembic upgrade head</code></td>
               <td>Schema migrations complete deterministically before service revisions receive incoming traffic.</td>
             </tr>
             <tr>

@@ -40,14 +40,14 @@ XIVI separates concerns between interactive user traffic and compute-intensive p
 ```mermaid
 graph TD
     Client["Browser / Client<br/>(React 18 + Vite + Zustand)"]
-    FirebaseHosting["Firebase Hosting<br/>toonlingo-app.web.app"]
+    FirebaseHosting["Firebase Hosting<br/>xivi-studio.web.app"]
     
     subgraph GCP["Google Cloud Platform (asia-southeast1)"]
-        API["Cloud Run: toonlingo-api<br/>(FastAPI Orchestrator, &lt;1s response)"]
-        Worker["Cloud Run: toonlingo-worker<br/>(Agent Pipeline + FFmpeg, 2 vCPU / 2Gi)"]
+        API["Cloud Run: xivi-api<br/>(FastAPI Orchestrator, &lt;1s response)"]
+        Worker["Cloud Run: xivi-worker<br/>(Agent Pipeline + FFmpeg, 2 vCPU / 2Gi)"]
         PubSub["Cloud Pub/Sub<br/>Topic: agent-events"]
-        CloudSQL[("Cloud SQL PostgreSQL<br/>toonlingo-pg")]
-        GCS[("Cloud Storage<br/>toonlingo-app-media")]
+        CloudSQL[("Cloud SQL PostgreSQL<br/>xivi-pg")]
+        GCS[("Cloud Storage<br/>xivi-app-media")]
         Firestore[("Cloud Firestore<br/>Realtime State &amp; Progress")]
         Redis[("Redis Cache<br/>Gemini Result Deduplication")]
         Secrets["Secret Manager<br/>(API keys, DB &amp; Redis URLs)"]
@@ -204,7 +204,7 @@ npm run build     # TypeScript compilation (tsc -b) & Vite bundle validation
 Every push to `main` triggering modifications in `backend/`, `frontend/`, or `infra/` runs `.github/workflows/deploy.yml`:
 1. Authenticates via **GCP Workload Identity Federation** (zero static credentials).
 2. Builds and pushes Docker images for `Dockerfile.api` and `Dockerfile.worker` to Artifact Registry.
-3. Automatically executes database migrations via a one-off Cloud Run job (`toonlingo-migrate`).
+3. Automatically executes database migrations via a one-off Cloud Run job (`xivi-migrate`).
 4. Updates both Cloud Run services with zero downtime.
 5. Injects the live API URL and builds the frontend production bundle, deploying directly to **Firebase Hosting**.
 
