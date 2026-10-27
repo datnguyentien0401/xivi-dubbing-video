@@ -1,5 +1,9 @@
 """Project configuration, read from environment variables (see .env.example at root)."""
 
+import json
+from typing import Any
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +18,27 @@ class Settings(BaseSettings):
     pubsub_push_audience: str = ""
     gcs_bucket_name: str
     firebase_project_id: str
+    cors_origins: list[str] = [
+        "https://xivi-studio.web.app",
+        "https://xivi-studio.firebaseapp.com",
+        "https://toonlingo-app.web.app",
+        "https://toonlingo-app.firebaseapp.com",
+        "http://localhost:5173",
+        "http://localhost:5183",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5183",
+    ]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            if v.startswith("["):
+                return json.loads(v)
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v
+
     # ONLY enable ("true") in docker-compose.yml for local dev — skips verifying
     # a real Firebase ID token, using 1 fixed user instead (see api/core/firebase_auth.py).
     # MUST NOT be set when deploying for real (infra/deploy.sh does not set it,

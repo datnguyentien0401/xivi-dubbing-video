@@ -15,6 +15,7 @@ import uuid
 
 import ffmpeg
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from google.auth.transport import requests as google_requests
 from google.cloud import firestore
 from google.oauth2 import id_token
@@ -46,6 +47,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="XIVI Worker")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 # --- Initialize shared services, avoid recreating them on every request ---
 _redis = RedisClient(settings.redis_url)
